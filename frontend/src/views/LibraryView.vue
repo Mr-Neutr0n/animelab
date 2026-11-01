@@ -23,6 +23,31 @@
       </div>
     </div>
 
+    <!-- Title filter: local only, never touches the store -->
+    <div class="library-filter">
+      <label class="sr-only" for="library-filter-input">{{
+        tx('Filtrer les titres de la bibliothèque')
+      }}</label>
+      <input
+        id="library-filter-input"
+        v-model="query"
+        type="search"
+        class="library-filter-input"
+        :placeholder="tx('Filtrer par titre')"
+        :aria-label="tx('Filtrer les titres de la bibliothèque')"
+      />
+      <button
+        v-if="query"
+        type="button"
+        class="icon-button library-filter-clear"
+        :title="tx('Effacer le filtre')"
+        :aria-label="tx('Effacer le filtre')"
+        @click="query = ''"
+      >
+        ✕
+      </button>
+    </div>
+
     <!-- Stats Bar -->
     <div class="stats-grid" style="margin-bottom: 24px">
       <div class="stat-card">
@@ -59,9 +84,18 @@
       }}</router-link>
     </div>
 
+    <!-- No match for the current filter -->
+    <div v-else-if="visibleFavorites.length === 0" class="empty-state" role="status">
+      <h3>{{ tx('Aucune série ne correspond à votre filtre') }}</h3>
+      <p>{{ tx('La bibliothèque est inchangée : seul l’affichage est filtré.') }}</p>
+      <button type="button" class="btn" style="margin-top: 14px" @click="query = ''">
+        {{ tx('Effacer le filtre') }}
+      </button>
+    </div>
+
     <!-- Favorites Grid -->
     <div v-else class="results-grid animate-fade-in">
-      <article v-for="fav in favorites" :key="fav.url" class="anime-card">
+      <article v-for="fav in visibleFavorites" :key="fav.url" class="anime-card">
         <router-link
           :to="{ path: '/anime', query: { url: fav.url, source: fav.source || 'french-manga' } }"
           class="card-link"
@@ -163,6 +197,23 @@ const favorites = computed<FavoriteItem[]>(() => {
   return libraryStore.favorites
 })
 
+const query = ref('')
+
+// Fold both sides so "soma" finds "Sōma" and "pokemon" finds "Pokémon": the
+// filter must never make an accented title unreachable from a plain keyboard.
+function foldTitle(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+}
+
+const visibleFavorites = computed<FavoriteItem[]>(() => {
+  const needle = foldTitle(query.value.trim())
+  if (!needle) return favorites.value
+  return favorites.value.filter((fav) => foldTitle(fav.title).includes(needle))
+})
+
 const autoDownloadCount = computed(() => {
   return favorites.value.filter((f) => f.autoDownload).length
 })
@@ -209,6 +260,45 @@ async function clearAll() {
 .library-container {
   display: flex;
   flex-direction: column;
+}
+
+.library-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.library-filter-input {
+  flex: 1;
+  max-width: 420px;
+  padding: 10px 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+}
+
+.library-filter-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.library-filter-clear {
+  width: 32px;
+  height: 32px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .empty-state {

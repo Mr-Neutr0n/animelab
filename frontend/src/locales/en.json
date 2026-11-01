@@ -1054,5 +1054,10 @@
   "Dérive de cadence": "Frame rate drift",
   "Correction non uniforme": "Non-uniform correction",
   "Décalage constant": "Constant offset",
-  "Attendu": "Expected"
+  "Attendu": "Expected",
+  "Filtrer les titres de la bibliothèque": "Filter library titles",
+  "Filtrer par titre": "Filter by title",
+  "Effacer le filtre": "Clear filter",
+  "Aucune série ne correspond à votre filtre": "No series matches your filter",
+  "La bibliothèque est inchangée : seul l’affichage est filtré.": "The library is unchanged; only the display is filtered."
 }
