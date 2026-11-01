@@ -65,7 +65,9 @@ test('a filter with no match is not confused with an empty library', async ({ pa
   await expect(page.getByText('Pokémon')).toBeVisible()
 })
 
-test('an empty library keeps its own message and shows no filter result state', async ({ page }) => {
+test('an empty library keeps its own message and shows no filter result state', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1440, height: 850 })
   await openLibrary(page, [])
 
