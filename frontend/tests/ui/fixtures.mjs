@@ -82,6 +82,37 @@ export async function mockApp(
     })
     let data = {}
     switch (url.pathname) {
+      case '/api/app/startup':
+        data = {
+          preferences: {
+            onboardingCompleted: true,
+            theme,
+            palette: 'teal',
+            checkUpdates: true,
+            updateChannel: 'beta',
+          },
+          currentVersion: '0.1.6-beta.3',
+          runtime: 'web',
+          os: 'linux',
+          architecture: 'x86_64',
+          storageEditable: false,
+          native: null,
+          downloadDirectory: '/downloads/AnimeLab',
+        }
+        break
+      case '/api/app/updates':
+        data = { status: 'current', currentVersion: '0.1.6-beta.3', channel: 'beta', release: null }
+        break
+      case '/api/app/preferences':
+        data = {
+          onboardingCompleted: true,
+          theme,
+          palette: 'teal',
+          checkUpdates: true,
+          updateChannel: 'beta',
+          ...route.request().postDataJSON(),
+        }
+        break
       case '/api/download/status':
         data = taskList
         break

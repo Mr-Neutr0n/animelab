@@ -77,8 +77,9 @@
 
 <script setup lang="ts">
 import brandIcon from '@/assets/brand-icon.png'
-import { tx, readPreference, writePreference } from '@/utils/locale'
-import { ref, onMounted } from 'vue'
+import { tx } from '@/utils/locale'
+import { effectiveTheme as theme, palette, setAppearance } from '@/stores/appearance'
+import { api } from '@/api/client'
 import { useI18nStore } from '@/stores/i18n'
 import { sharedUser } from '@/stores/sharedSession'
 
@@ -87,13 +88,6 @@ const emit = defineEmits<{
 }>()
 
 const i18nStore = useI18nStore()
-const theme = ref<'dark' | 'light'>('dark')
-
-onMounted(() => {
-  const savedTheme = (readPreference('theme') as 'dark' | 'light') || 'dark'
-  theme.value = savedTheme
-  document.documentElement.setAttribute('data-theme', savedTheme)
-})
 
 function emitOpenPalette() {
   emit('open-palette')
@@ -101,9 +95,8 @@ function emitOpenPalette() {
 
 function toggleTheme() {
   const newTheme = theme.value === 'dark' ? 'light' : 'dark'
-  theme.value = newTheme
-  writePreference('theme', newTheme)
-  document.documentElement.setAttribute('data-theme', newTheme)
+  setAppearance(newTheme, palette.value)
+  void api.saveAppPreferences({ theme: newTheme, palette: palette.value }).catch(() => {})
 }
 
 function toggleLang() {

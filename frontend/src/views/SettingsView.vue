@@ -201,6 +201,8 @@
           </div>
         </div>
 
+        <AppUpdateSettings />
+
         <!-- Thème d'affichage -->
         <div class="setting-row-pro">
           <div class="setting-meta-pro">
@@ -212,14 +214,7 @@
             </div>
           </div>
           <div class="setting-ctrl-pro">
-            <select
-              v-model="theme"
-              class="input-premium setting-select-pro"
-              @change="onThemeChange"
-            >
-              <option value="dark">{{ tx('Sombre (Deep Slate / AMOLED)') }}</option>
-              <option value="light">{{ tx('Clair (Mihon Material Light)') }}</option>
-            </select>
+            <ThemePicker @change="onThemeChange" />
           </div>
         </div>
 
@@ -852,7 +847,10 @@
 
 <script setup lang="ts">
 import DiagnosticsExport from '@/components/DiagnosticsExport.vue'
-import { tx, readPreference, writePreference } from '@/utils/locale'
+import { tx } from '@/utils/locale'
+import { themeMode, palette } from '@/stores/appearance'
+import ThemePicker from '@/components/ThemePicker.vue'
+import AppUpdateSettings from '@/components/AppUpdateSettings.vue'
 import { useNotifications } from '@/stores/notifications'
 import { ref, computed, onMounted } from 'vue'
 import { api } from '@/api/client'
@@ -869,7 +867,6 @@ if (useRoute().query.tab === 'proxy') currentTab.value = 'proxy'
 if (useRoute().query.tab === 'storage') currentTab.value = 'storage'
 const activeSourceTab = ref<'voir-anime' | 'animepahe' | 'french-manga'>('voir-anime')
 
-const theme = ref('dark')
 const uaSelection = ref('Random (Rotator)')
 const customUa = ref('')
 const plexOrganization = ref(false)
@@ -929,9 +926,12 @@ const effectiveProxyUrl = computed(() => {
   return `${type}://${auth}${proxySettings.value.host}:${port}`
 })
 
-function onThemeChange() {
-  writePreference('theme', theme.value)
-  document.documentElement.setAttribute('data-theme', theme.value)
+async function onThemeChange() {
+  try {
+    await api.saveAppPreferences({ theme: themeMode.value, palette: palette.value })
+  } catch {
+    showToast('Apparence enregistrée uniquement dans ce navigateur.', 'info')
+  }
 }
 
 async function onLanguageChange(lang: string) {
@@ -1041,7 +1041,6 @@ async function saveAll() {
 }
 
 onMounted(() => {
-  theme.value = (readPreference('theme') as string) || 'dark'
   loadSettings()
 })
 </script>

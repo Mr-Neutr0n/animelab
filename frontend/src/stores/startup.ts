@@ -1,0 +1,132 @@
+import { defineStore } from 'pinia'
+import { ref } from 'vue'
+import { api } from '@/api/client'
+import { palette, setAppearance, themeMode } from './appearance'
+import { readPreference, writePreference } from '@/utils/locale'
+import type { AppPreferences, StartupSnapshot, UpdateCheck } from '@/types/startup'
+
+export const useStartupStore = defineStore('startup', () => {
+  const screen = ref<
+    'loading' | 'update' | 'updated' | 'theme' | 'storage' | 'permissions' | 'app'
+  >('loading')
+  const snapshot = ref<StartupSnapshot | null>(null)
+  const update = ref<UpdateCheck | null>(null)
+  const error = ref('')
+  const saving = ref(false)
+  const checking = ref(false)
+  let generation = 0
+  function continueStartup() {
+    const state = snapshot.value
+    screen.value = state?.preferences.onboardingCompleted
+      ? state.preferences.lastSeenVersion &&
+        state.preferences.lastSeenVersion !== state.currentVersion
+        ? 'updated'
+        : 'app'
+      : 'theme'
+  }
+  async function initialize() {
+    const current = ++generation
+    screen.value = 'loading'
+    error.value = ''
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 5000)
+    try {
+      const state = await api.getStartup(controller.signal)
+      if (current !== generation) return
+      snapshot.value = state
+      // Shared browsers keep their own appearance; a changing Android origin
+      // can restore installation preferences from the engine instead.
+      setAppearance(
+        (readPreference('theme') ? themeMode.value : state.preferences.theme) || themeMode.value,
+        (readPreference('palette') ? palette.value : state.preferences.palette) || palette.value,
+      )
+      if (state.preferences.checkUpdates) {
+        await checkUpdates()
+        if (current !== generation) return
+        if (update.value?.status === 'available') {
+          screen.value = 'update'
+          return
+        }
+      }
+      continueStartup()
+    } catch {
+      if (current === generation)
+        error.value = 'Impossible de joindre le serveur. Vous pouvez réessayer ou continuer.'
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+  async function checkUpdates(refresh = false) {
+    checking.value = true
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 8000)
+    try {
+      update.value = await api.checkApplicationUpdates(controller.signal, refresh)
+    } catch {
+      update.value = {
+        status: 'offline',
+        currentVersion: snapshot.value?.currentVersion || '',
+        channel: snapshot.value?.preferences.updateChannel || 'beta',
+        release: null,
+      }
+    } finally {
+      clearTimeout(timer)
+      checking.value = false
+    }
+  }
+  function skipCheck() {
+    generation++
+    if (snapshot.value) continueStartup()
+    else screen.value = 'app'
+  }
+  async function save(changes: Partial<AppPreferences>) {
+    const prefs = await api.saveAppPreferences(changes)
+    if (snapshot.value) snapshot.value.preferences = prefs
+  }
+  async function finish() {
+    saving.value = true
+    error.value = ''
+    try {
+      await save({
+        onboardingCompleted: true,
+        theme: themeMode.value,
+        palette: palette.value,
+        lastSeenVersion: snapshot.value?.currentVersion,
+      })
+      writePreference('onboarding_completed', '1')
+      return true
+    } catch (failure) {
+      error.value = failure instanceof Error ? failure.message : String(failure)
+      return false
+    } finally {
+      saving.value = false
+    }
+  }
+  async function acknowledgeUpdate() {
+    saving.value = true
+    error.value = ''
+    try {
+      await save({ lastSeenVersion: snapshot.value?.currentVersion })
+      screen.value = 'app'
+    } catch {
+      error.value = 'Impossible d’enregistrer les préférences.'
+    } finally {
+      saving.value = false
+    }
+  }
+  return {
+    screen,
+    snapshot,
+    update,
+    error,
+    saving,
+    checking,
+    initialize,
+    checkUpdates,
+    continueStartup,
+    skipCheck,
+    save,
+    finish,
+    acknowledgeUpdate,
+  }
+})

@@ -1,6 +1,9 @@
 <resources>
-    <color name="bg_dark">#0E121D</color>
-    <color name="surface_dark">#151B2B</color>
+    <color name="bg_dark">#0B1517</color>
+    <color name="surface_dark">#18272A</color>
+    <color name="accent_teal">#80D3DC</color>
+    <color name="accent_teal_dark">#006874</color>
+    <color name="on_accent">#00363C</color>
     <color name="accent_purple">#9D6FFF</color>
     <color name="accent_purple_dark">#7A41EB</color>
     <color name="text_white">#F1F5F9</color>

@@ -1,5 +1,8 @@
 # AnimeLab
 
+Le [guide de configuration initiale et de mises à jour](docs/startup-and-updates.md)
+décrit le premier démarrage, les thèmes, les dossiers et les permissions Android.
+
 [English](README.md) | [Français](README.fr.md)
 
 <img src="docs/branding/animelab-wordmark.png" alt="AnimeLab" width="360" />

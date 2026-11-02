@@ -63,6 +63,8 @@ class MainActivity : AppCompatActivity() {
                 "notifications" -> if (Build.VERSION.SDK_INT >= 33) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
                     else startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName))
                 "app_settings" -> startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+                "install_apps" -> startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+                "battery" -> startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
                 "open_downloads" -> {
                     val uri = StorageAccess.treeUri()
                     if (uri == null) startActivity(Intent(DownloadManager.ACTION_VIEW_DOWNLOADS))
@@ -90,7 +92,6 @@ class MainActivity : AppCompatActivity() {
         EngineHost.start(applicationContext, BuildConfig.DEBUG && intent.getBooleanExtra("test_mode", false))
         StorageAccess.actionHandler = permissionAction
         DownloadService.update(applicationContext)
-        if (Build.VERSION.SDK_INT >= 33) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         binding.retryButton.setOnClickListener { connect() }
         connect()
     }

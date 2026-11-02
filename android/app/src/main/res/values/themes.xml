@@ -3,8 +3,8 @@
         <item name="android:statusBarColor">@color/bg_dark</item>
         <item name="android:navigationBarColor">@color/bg_dark</item>
         <item name="android:windowBackground">@color/bg_dark</item>
-        <item name="colorPrimary">@color/accent_purple</item>
-        <item name="colorPrimaryVariant">@color/accent_purple_dark</item>
-        <item name="colorOnPrimary">@color/text_white</item>
+        <item name="colorPrimary">@color/accent_teal</item>
+        <item name="colorPrimaryVariant">@color/accent_teal_dark</item>
+        <item name="colorOnPrimary">@color/on_accent</item>
     </style>
 </resources>

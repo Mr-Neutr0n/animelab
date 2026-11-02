@@ -109,7 +109,7 @@ class WatchedRequest(WireModel):
 
 
 class StorageAction(WireModel):
-    action: Literal['choose_directory', 'use_downloads', 'notifications', 'app_settings', 'open_downloads']
+    action: Literal['choose_directory', 'use_downloads', 'notifications', 'app_settings', 'open_downloads', 'install_apps', 'battery']
 
 
 class ExportRequest(WireModel):

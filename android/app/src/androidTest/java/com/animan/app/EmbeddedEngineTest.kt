@@ -26,6 +26,38 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 @RunWith(AndroidJUnit4::class)
 class EmbeddedEngineTest {
+    private fun completeFirstRun(scenario: ActivityScenario<MainActivity>) {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(60)
+        while (System.nanoTime() < deadline) {
+            val checked = CountDownLatch(1)
+            val ready = AtomicBoolean(false)
+            scenario.onActivity { activity ->
+                activity.findViewById<WebView>(R.id.webView).evaluateJavascript("""
+                    (() => {
+                        const setup = document.querySelector('.startup-page');
+                        if (!setup) {
+                            if (!document.querySelector('#main-content')) return false;
+                            const home = document.querySelector('a[href="/spa/"]');
+                            if (home) home.click();
+                            return true;
+                        }
+                        const buttons = [...setup.querySelectorAll('button')];
+                        const next = buttons.find(b => !b.disabled && ['Suivant','Next','Commencer','Get started','Continuer','Continue','Pas maintenant','Not now'].includes(b.textContent.trim()));
+                        if (next) { next.click(); return false; }
+                        const folder = buttons.find(b => !b.disabled && b.textContent.trim() === 'Utiliser Downloads/AnimeLab');
+                        const englishFolder = buttons.find(b => !b.disabled && b.textContent.trim() === 'Use Downloads/AnimeLab');
+                        (folder || englishFolder)?.click();
+                        return false;
+                    })()
+                """.trimIndent()) { ready.set(it == "true"); checked.countDown() }
+            }
+            checked.await(5, TimeUnit.SECONDS)
+            if (ready.get()) return
+            Thread.sleep(250)
+        }
+        fail("First-run configuration did not reach the library")
+    }
+
     @org.junit.After fun removeIsolatedProbeExports() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         if (context.packageName != "com.animan.app.a11test") return
@@ -95,7 +127,11 @@ class EmbeddedEngineTest {
             assertTrue(page!!.second.contains("id=\"app\""))
             assertEquals(401, request("/api/download/status", false).first)
             assertEquals(200, request("/api/download/status").first)
+            completeFirstRun(scenario)
             waitForHome(scenario, "Vue did not render in the installed System WebView")
+            val startup = JSONObject(request("/api/app/startup").second)
+            assertTrue(startup.getJSONObject("preferences").getBoolean("onboardingCompleted"))
+            assertEquals(BuildConfig.RELEASE_VERSION, startup.getString("currentVersion"))
             // Measure installed storage separately from APK size, before media
             // fixtures create downloads. Querying our own UID needs no extra grant.
             val storageManager = context.getSystemService(android.os.storage.StorageManager::class.java)
@@ -121,6 +157,9 @@ class EmbeddedEngineTest {
             waitForHome(scenario, "Recreated WebView did not become visible")
             val storage = JSONObject(request("/api/system/android/storage").second)
             assertTrue(storage.getBoolean("authorized"))
+            assertTrue(storage.getBoolean("storageChosen"))
+            assertTrue(storage.has("installAppsGranted"))
+            assertTrue(storage.has("batteryUnrestricted"))
             assertEquals("Downloads/AnimeLab", storage.getString("destination"))
             assertEquals(401, request("/api/system/android/storage", false, "{\"action\":\"choose_directory\"}").first)
             val selection = JSONObject(request("/api/system/android/storage", body = "{\"action\":\"choose_directory\"}").second)

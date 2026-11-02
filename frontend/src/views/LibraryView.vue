@@ -82,6 +82,14 @@
       <router-link to="/" class="btn btn-primary" style="margin-top: 14px">{{
         tx('Découvrir les animés')
       }}</router-link>
+      <button
+        type="button"
+        class="btn btn-secondary"
+        style="margin-top: 12px"
+        @click="startup.screen = 'theme'"
+      >
+        {{ tx('Guide de démarrage') }}
+      </button>
     </div>
 
     <!-- No match for the current filter -->
@@ -171,6 +179,8 @@
 
 <script setup lang="ts">
 import { tx } from '@/utils/locale'
+import { useStartupStore } from '@/stores/startup'
+const startup = useStartupStore()
 import { ref, computed, onMounted, onActivated } from 'vue'
 import { useLibraryStore } from '@/stores/library'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'

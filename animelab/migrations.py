@@ -259,6 +259,10 @@ def native_extension_references(conn):
     conn.exec_driver_sql('INSERT INTO extension_reference_budget(id) VALUES (1)')
 
 
+def startup_preferences(conn):
+    conn.exec_driver_sql('CREATE TABLE app_preferences (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
+
+
 MIGRATIONS = (
     Migration(1, 'core_tables', bootstrap),
     Migration(2, 'download_identity_and_verification', download_identity),
@@ -273,6 +277,7 @@ MIGRATIONS = (
     Migration(11, 'encrypted_subtitle_provider_credentials', subtitle_provider_secrets),
     Migration(12, 'extension_catalog_installation_and_runtime', extension_lifecycle),
     Migration(13, 'persistent_native_extension_references', native_extension_references),
+    Migration(14, 'startup_appearance_and_update_preferences', startup_preferences),
 )
 
 
