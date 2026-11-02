@@ -27,7 +27,10 @@ class NativeMediaTest {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         EngineHost.context = context
         StorageAccess.useDownloads()
-        assertTrue(JSONObject(StorageAccess.status()).getBoolean("authorized"))
+        val storage = JSONObject(StorageAccess.status())
+        assertTrue(storage.getBoolean("authorized"))
+        // This host intentionally has no REQUEST_INSTALL_PACKAGES permission.
+        assertFalse(storage.getBoolean("installAppsGranted"))
         val root = context.cacheDir
         val probeDir = File(root, "hardsub test").apply { mkdirs() }
         val startedAt = android.os.SystemClock.elapsedRealtime()

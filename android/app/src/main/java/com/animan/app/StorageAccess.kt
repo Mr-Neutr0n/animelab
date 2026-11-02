@@ -66,13 +66,18 @@ object StorageAccess {
         val uri = treeUri()
         val allowed = if (uri == null) Environment.getExternalStorageState() == Environment.MEDIA_MOUNTED else authorized(uri)
         val context = EngineHost.context
+        // Hosts which reuse storage/media code need not declare APK installation.
+        // PackageManager throws instead of returning false in that case.
+        val installAppsGranted = try {
+            context.packageManager.canRequestPackageInstalls()
+        } catch (_: SecurityException) { false }
         return JSONObject().put("android", true).put("apiLevel", Build.VERSION.SDK_INT)
             .put("mode", if (uri == null) "downloads" else "directory")
             .put("destination", if (uri == null) DEFAULT_DESTINATION else preferences.getString("tree_name", ""))
             .put("subtitleDestination", if (uri == null) preferences.getString("subtitle_destination", null) ?: JSONObject.NULL else JSONObject.NULL)
             .put("authorized", allowed).put("selectionPending", selectionPending)
             .put("storageChosen", uri != null || preferences.getBoolean("storage_chosen", false))
-            .put("installAppsGranted", context.packageManager.canRequestPackageInstalls())
+            .put("installAppsGranted", installAppsGranted)
             .put("batteryUnrestricted", (context.getSystemService(Context.POWER_SERVICE) as PowerManager)
                 .isIgnoringBatteryOptimizations(context.packageName))
             .put("notificationsGranted", NotificationManagerCompat.from(context).areNotificationsEnabled() &&
