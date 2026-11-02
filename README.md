@@ -1,5 +1,8 @@
 # AnimeLab
 
+See the [first-run setup and update guide (French)](docs/startup-and-updates.md)
+for appearance, storage selection, Android permissions and release checks.
+
 [English](README.md) | [Français](README.fr.md)
 
 <img src="docs/branding/animelab-wordmark.png" alt="AnimeLab" width="360" />

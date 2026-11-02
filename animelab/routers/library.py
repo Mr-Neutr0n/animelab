@@ -207,7 +207,7 @@ async def android_storage_action(request: Request):
     if not isinstance(body, dict):
         raise HTTPException(400, "Invalid permission request")
     action = body.get("action")
-    if not isinstance(action, str) or action not in {"choose_directory", "use_downloads", "notifications", "app_settings", "open_downloads"}:
+    if not isinstance(action, str) or action not in {"choose_directory", "use_downloads", "notifications", "app_settings", "open_downloads", "install_apps", "battery"}:
         raise HTTPException(400, "Unknown permission action")
     if platform_events.storage_action_handler is None:
         raise HTTPException(404, "Android storage controls are unavailable")

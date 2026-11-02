@@ -3,6 +3,28 @@ from pathlib import Path
 import sys
 import threading
 import subprocess
+from urllib.parse import urlsplit
+
+
+class DirectoryPicker:
+    """Only the trusted local application may invoke the native folder dialog."""
+    def __init__(self, url):
+        self._origin = self._get_origin(url)
+        self._window = None
+
+    @staticmethod
+    def _get_origin(url):
+        parsed = urlsplit(url or '')
+        if parsed.scheme != 'http' or parsed.hostname not in ('localhost', '127.0.0.1', '::1'):
+            return None
+        return parsed.scheme, parsed.hostname, parsed.port
+
+    def choose_download_directory(self):
+        if self._window is None or self._origin is None or self._get_origin(self._window.get_current_url()) != self._origin:
+            raise PermissionError('The folder picker is available only in the local AnimeLab window')
+        import webview
+        selected = self._window.create_file_dialog(webview.FOLDER_DIALOG)
+        return selected[0] if selected else None
 
 
 def window_icon():
@@ -25,10 +47,13 @@ def open_window(url=None, control_url=None, workdir=None, probe=False):
     from animelab.services.source_http import USER_AGENT
 
     marker = threading.Event()
+    picker = DirectoryPicker(url) if not probe else None
     window = webview.create_window('AnimeLab — Window check' if probe else 'AnimeLab',
         url, html='<html><body><p id="probe">AnimeLab window OK</p></body></html>' if probe else None,
         width=640 if probe else 1280, height=480 if probe else 820,
-        min_size=(320, 240) if probe else (800, 600))
+        min_size=(320, 240) if probe else (800, 600), js_api=picker)
+    if picker:
+        picker._window = window
 
     def shown():
         marker.set()

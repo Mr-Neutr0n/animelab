@@ -50,6 +50,8 @@ async def lifespan(app: FastAPI):
     browser_verification.verified_callback = download_manager.resume_verified_domain
     # 1. Initialize SQLite database
     init_db()
+    from animelab.services.app_preferences import restore_download_directory
+    restore_download_directory()
     # 2. Restore unfinished download tasks
     download_manager.init_from_db()
     loop = asyncio.get_running_loop()
@@ -252,6 +254,8 @@ app.include_router(download_router)
 from animelab.routers.subtitles import router as subtitles_router
 app.include_router(subtitles_router)
 app.include_router(library_router)
+from animelab.routers.startup import router as startup_router
+app.include_router(startup_router)
 app.include_router(media_router)
 app.include_router(extensions_router)
 app.include_router(sources_router)

@@ -6,7 +6,7 @@
     <string name="connection_error_desc">Assurez-vous qu\'AnimeLab est lancé sur votre PC ou serveur local sur le même réseau Wi-Fi.</string>
     <string name="change_server">Configurer le serveur</string>
     <string name="retry">Retry</string>
-    <string name="starting_engine">Starting the embedded AnimeLab engine…</string>
+    <string name="starting_engine">Preparing your library…</string>
     <string name="engine_error">The embedded engine could not start: %1$s</string>
     <string name="engine_timeout">Startup timed out</string>
     <string name="download_channel">Anime downloads</string>

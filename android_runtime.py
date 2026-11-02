@@ -141,7 +141,7 @@ def start(data_dir, cache_dir, port, token, test_mode=False):
         "ANIMAN_HOST": "127.0.0.1", "ANIMAN_PORT": str(port),
     })
     if test_mode:
-        update_environment(ANIMAN_STARTUP_REFRESH="false")
+        update_environment(ANIMAN_STARTUP_REFRESH="false", ANIMELAB_UPDATE_CHECK_DISABLED="true")
     import tempfile
     tempfile.tempdir = cache_dir
     from java import jclass
@@ -153,6 +153,7 @@ def start(data_dir, cache_dir, port, token, test_mode=False):
     hooks = jclass("com.animan.app.NativeHooks")
     verification = jclass("com.animan.app.VerificationBridge")
     storage = jclass("com.animan.app.StorageAccess")
+    update_environment(ANIMELAB_RELEASE_VERSION=str(jclass('com.animan.app.BuildConfig').RELEASE_VERSION))
     platform_events.storage_status_handler = lambda: json.loads(str(storage.status()))
     platform_events.storage_action_handler = lambda action: json.loads(str(storage.request(action)))
     import run

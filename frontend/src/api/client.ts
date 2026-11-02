@@ -23,6 +23,7 @@ import type {
   VerificationResult,
 } from '@/types/api'
 import { language, tx } from '@/utils/locale'
+import type { AppPreferences, StartupSnapshot, UpdateCheck } from '@/types/startup'
 import type {
   AndroidExtensionState,
   NativeExtension,
@@ -38,6 +39,9 @@ export interface AndroidStorageState {
   authorized: boolean
   selectionPending: boolean
   notificationsGranted: boolean
+  storageChosen?: boolean
+  installAppsGranted?: boolean
+  batteryUnrestricted?: boolean
   subtitleDestination?: string | null
   error: string | null
   exportError: string | null
@@ -150,6 +154,24 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 }
 
 export const api = {
+  getStartup(signal?: AbortSignal) {
+    return request<StartupSnapshot>('/api/app/startup', { signal })
+  },
+  saveAppPreferences(changes: Partial<AppPreferences>) {
+    return request<AppPreferences>('/api/app/preferences', {
+      method: 'PATCH',
+      body: JSON.stringify(changes),
+    })
+  },
+  checkApplicationUpdates(signal?: AbortSignal, refresh = false) {
+    return request<UpdateCheck>('/api/app/updates' + (refresh ? '?refresh=true' : ''), { signal })
+  },
+  saveDownloadDirectory(path: string) {
+    return request<{ downloadDirectory: string }>('/api/app/directory', {
+      method: 'POST',
+      body: JSON.stringify({ path }),
+    })
+  },
   openPlaybackSession(body: PlaybackOpen, signal?: AbortSignal) {
     return request<PlaybackState>('/api/playback/session', {
       method: 'POST',

@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.os.PowerManager
 import android.provider.DocumentsContract
 import androidx.core.content.ContextCompat
 import androidx.core.app.NotificationManagerCompat
@@ -43,13 +44,14 @@ object StorageAccess {
         val name = resolver.query(directory(uri), arrayOf(DocumentsContract.Document.COLUMN_DISPLAY_NAME), null, null, null)?.use {
             if (it.moveToFirst()) it.getString(0) else null
         } ?: uri.lastPathSegment.orEmpty()
-        check(preferences.edit().putString("tree_uri", uri.toString()).putString("tree_name", name).remove("permission_error").commit())
+        check(preferences.edit().putString("tree_uri", uri.toString()).putString("tree_name", name)
+            .putBoolean("storage_chosen", true).remove("permission_error").commit())
         if (previous != null && previous != uri) try { resolver.releasePersistableUriPermission(previous, access) } catch (_: Exception) { }
     }
 
     fun useDownloads() = synchronized(NativeHooks.exportLock) {
         val previous = treeUri()
-        check(preferences.edit().remove("tree_uri").remove("tree_name").remove("permission_error").commit())
+        check(preferences.edit().remove("tree_uri").remove("tree_name").putBoolean("storage_chosen", true).remove("permission_error").commit())
         if (previous != null) try { EngineHost.context.contentResolver.releasePersistableUriPermission(previous,
             Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION) } catch (_: Exception) { }
     }
@@ -69,6 +71,10 @@ object StorageAccess {
             .put("destination", if (uri == null) DEFAULT_DESTINATION else preferences.getString("tree_name", ""))
             .put("subtitleDestination", if (uri == null) preferences.getString("subtitle_destination", null) ?: JSONObject.NULL else JSONObject.NULL)
             .put("authorized", allowed).put("selectionPending", selectionPending)
+            .put("storageChosen", uri != null || preferences.getBoolean("storage_chosen", false))
+            .put("installAppsGranted", context.packageManager.canRequestPackageInstalls())
+            .put("batteryUnrestricted", (context.getSystemService(Context.POWER_SERVICE) as PowerManager)
+                .isIgnoringBatteryOptimizations(context.packageName))
             .put("notificationsGranted", NotificationManagerCompat.from(context).areNotificationsEnabled() &&
                 (Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED))
             .put("error", preferences.getString("permission_error", null) ?: JSONObject.NULL)
@@ -76,7 +82,7 @@ object StorageAccess {
     }
 
     @JvmStatic @Synchronized fun request(action: String): String {
-        require(action in listOf("choose_directory", "use_downloads", "notifications", "app_settings", "open_downloads")) { "Unknown permission action" }
+        require(action in listOf("choose_directory", "use_downloads", "notifications", "app_settings", "open_downloads", "install_apps", "battery")) { "Unknown permission action" }
         if (action == "use_downloads") useDownloads()
         else {
             val handler = actionHandler ?: throw IllegalStateException("Open AnimeLab before changing permissions")

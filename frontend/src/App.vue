@@ -1,5 +1,6 @@
 <template>
-  <div class="app-shell">
+  <StartupFlow />
+  <div v-if="startup.screen === 'app'" class="app-shell">
     <!-- Left Navigation Sidebar -->
     <a class="skip-link" href="#main-content">{{ tx('Aller au contenu') }}</a>
     <AppSidebar :inert="isPaletteOpen" />
@@ -50,6 +51,9 @@ import VideoPlayerModal from '@/components/VideoPlayerModal.vue'
 import { useDownloadStore } from '@/stores/downloads'
 import { useI18nStore } from '@/stores/i18n'
 import { useRoute } from 'vue-router'
+import StartupFlow from '@/components/StartupFlow.vue'
+import { useStartupStore } from '@/stores/startup'
+const startup = useStartupStore()
 
 const searchContext = useSearchContext()
 const route = useRoute()
@@ -61,6 +65,28 @@ watch(
   },
 )
 const downloadStore = useDownloadStore()
+let bookmarkPending = true
+watch(
+  () => startup.screen,
+  async (screen) => {
+    if (screen === 'app') {
+      downloadStore.startSSE()
+      void downloadStore.fetchTasks()
+      if (bookmarkPending) {
+        bookmarkPending = false
+        // Mount the palette before opening it so its open watcher can restore
+        // a legacy bookmark's query and source after startup completes.
+        await nextTick()
+        if (route.query.search === '1' || typeof route.query.q === 'string') {
+          openPalette(
+            typeof route.query.q === 'string' ? route.query.q : '',
+            typeof route.query.source === 'string' ? route.query.source : undefined,
+          )
+        }
+      }
+    } else downloadStore.stopSSE()
+  },
+)
 const i18nStore = useI18nStore()
 const isPaletteOpen = ref(false)
 const paletteQuery = ref<string | undefined>()
@@ -72,6 +98,7 @@ function openPalette(query?: string, source?: string) {
 }
 
 function onKeyDown(e: KeyboardEvent) {
+  if (startup.screen !== 'app') return
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
     e.preventDefault()
     if (e.repeat || document.querySelector('.dialog-overlay')) return
@@ -84,20 +111,8 @@ onMounted(() => {
   // Initialize i18n
   i18nStore.init()
 
-  // Preserve searches opened through old /search bookmarks after their redirect.
-  if (route.query.search === '1' || typeof route.query.q === 'string') {
-    openPalette(
-      typeof route.query.q === 'string' ? route.query.q : '',
-      typeof route.query.source === 'string' ? route.query.source : undefined,
-    )
-  }
-
   // Listen for Ctrl+K
   window.addEventListener('keydown', onKeyDown)
-
-  // Start real-time downloads SSE stream
-  downloadStore.startSSE()
-  downloadStore.fetchTasks()
 })
 
 onUnmounted(() => {

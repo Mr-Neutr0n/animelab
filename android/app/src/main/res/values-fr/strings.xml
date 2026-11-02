@@ -1,6 +1,6 @@
 <resources>
     <string name="retry">Réessayer</string>
-    <string name="starting_engine">Démarrage du moteur AnimeLab embarqué…</string>
+    <string name="starting_engine">Préparation de votre bibliothèque…</string>
     <string name="engine_error">Le moteur embarqué ne peut pas démarrer : %1$s</string>
     <string name="engine_timeout">Le démarrage a dépassé le délai prévu</string>
     <string name="download_channel">Téléchargements des épisodes</string>
