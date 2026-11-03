@@ -16,17 +16,13 @@ object ExtensionBridge {
     private val gateway = object : IExtensionHttp.Stub() {
         override fun request(payload: String): ParcelFileDescriptor {
             require(payload.length <= 3_000_000)
-            val pipe = ParcelFileDescriptor.createPipe()
-            network.execute {
-                ParcelFileDescriptor.AutoCloseOutputStream(pipe[1]).use { output ->
-                    val data = try {
-                        check(Python.isStarted()) { "The HTTP owner is not ready" }
-                        Python.getInstance().getModule("android_runtime").callAttr("extension_http", payload).toString()
-                    } catch (_: Exception) { "{\"error\":\"source_network_unavailable\"}" }
-                    output.write(data.toByteArray(Charsets.UTF_8))
-                }
+            return ExtensionResponsePipe.open(network) {
+                val data = try {
+                    check(Python.isStarted()) { "The HTTP owner is not ready" }
+                    Python.getInstance().getModule("android_runtime").callAttr("extension_http", payload).toString()
+                } catch (_: Exception) { "{\"error\":\"source_network_unavailable\"}" }
+                data.toByteArray(Charsets.UTF_8)
             }
-            return pipe[0]
         }
     }
 

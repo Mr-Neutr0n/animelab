@@ -130,8 +130,29 @@ local exige à la fois le cookie reçu et le véritable UA du navigateur.
 Résultats locaux : **plus de 1 000 tests Python réussis, 5 ignorés**, contrôles Ruff et
 Mypy réussis, **37 tests frontend réussis**, compilation Vue réussie et **5 essais
 Playwright ciblés réussis** dans le Chrome installé (mobile/desktop, français et
-anglais, reprise et politique des proxys). Aucun appareil n'était connecté à ADB
-pendant ce diagnostic.
+anglais, reprise et politique des proxys).
+
+### Complément : recherche et plantage sur le téléphone reconnecté
+
+La recherche réelle `Bleach`, avec la recette Anime-sama installée sur le PC,
+appelle `/catalogue/?s=Bleach` et renvoie **12 résultats en 6,1 secondes**. La
+réponse de la page d'accueil seule n'aurait pas suffi à le vérifier. Cet essai
+ne valide pas encore le transport de l'APK sur le téléphone.
+
+Le SCV38 reconnecté expose plusieurs crashs de `com.animan.app` les 2 et 3 novembre :
+`java.io.IOException: write failed: EPIPE (Broken pipe)` dans l'exécuteur du
+pont HTTP. Le lecteur du processus d'extensions peut disparaître avant la fin de
+la réponse (annulation, dépassement de délai ou arrêt du worker). L'écriture
+non protégée faisait alors tomber le processus principal. Le pont ferme désormais
+son descripteur et traite cette rupture comme l'échec d'une seule requête ; il
+ferme aussi les deux descripteurs si la file du réseau refuse la tâche.
+
+Une régression Android ferme volontairement le lecteur avant une grosse réponse,
+puis exige qu'une requête suivante réussisse sans exception échappée de
+l'exécuteur. L'instrumentation des APK optimisés inclut cette régression.
+Les routes catalogue/filtres conservent également les catégories réseau détaillées
+au lieu de toutes les masquer sous « La source est momentanément inaccessible ».
+La validation de ce complément sur le téléphone reste à exécuter.
 
 Les essais d'interface vérifient la reprise et l'absence de promesse « accès
 vérifié ». L'instrumentation Android compare également l'UA exposé aux extensions
