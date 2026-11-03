@@ -9,7 +9,14 @@ import java.util.concurrent.RejectedExecutionException
 /** The extension worker may close its reader on cancellation, timeout or death. */
 object ExtensionResponsePipe {
     fun open(executor: Executor, response: () -> ByteArray): ParcelFileDescriptor {
-        val pipe = ParcelFileDescriptor.createPipe()
+        val pipe = try {
+            ParcelFileDescriptor.createPipe()
+        } catch (error: IOException) {
+            // Binder can marshal a RuntimeException to the caller. A checked
+            // IOException escaping a Kotlin AIDL implementation cannot be used
+            // as its transaction failure reply.
+            throw IllegalStateException("The source response pipe is unavailable", error)
+        }
         try {
             executor.execute {
                 try {
@@ -25,7 +32,7 @@ object ExtensionResponsePipe {
         } catch (error: RejectedExecutionException) {
             // No writer was scheduled: neither end can be handed to a caller.
             pipe.forEach { try { it.close() } catch (_: IOException) { } }
-            throw IOException("The source network gateway is busy", error)
+            throw IllegalStateException("The source network gateway is busy", error)
         }
         return pipe[0]
     }

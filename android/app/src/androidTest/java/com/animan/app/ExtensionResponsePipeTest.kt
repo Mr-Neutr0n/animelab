@@ -5,7 +5,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.io.IOException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -15,8 +14,10 @@ import java.util.concurrent.atomic.AtomicReference
 class ExtensionResponsePipeTest {
     @Test fun closedReaderDoesNotCrashOwnerAndNextRequestStillWorks() {
         val uncaught = AtomicReference<Throwable>()
+        val writer = AtomicReference<Thread>()
         val executor = Executors.newSingleThreadExecutor { task ->
             Thread(task, "response-pipe-regression").apply {
+                writer.compareAndSet(null, this)
                 uncaughtExceptionHandler = Thread.UncaughtExceptionHandler { _, error -> uncaught.set(error) }
             }
         }
@@ -34,6 +35,7 @@ class ExtensionResponsePipeTest {
             }
             executor.shutdown()
             assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS))
+            writer.get()?.join(5000)
             assertNull("Closing a response reader must not escape the executor", uncaught.get())
         } finally {
             release.countDown()
@@ -47,7 +49,7 @@ class ExtensionResponsePipeTest {
         try {
             ExtensionResponsePipe.open(executor) { ByteArray(0) }.close()
             fail("A rejected request must fail immediately")
-        } catch (expected: IOException) {
+        } catch (expected: IllegalStateException) {
             assertEquals("The source network gateway is busy", expected.message)
         }
     }
