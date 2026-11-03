@@ -10,7 +10,6 @@ from urllib.parse import urlparse
 from email.utils import parsedate_to_datetime
 
 from animelab.config import settings
-from animelab.services.source_http import USER_AGENT
 from animelab.services.verification_cookies import snapshot
 
 
@@ -37,7 +36,7 @@ class ChromiumVerification:
         port_file.unlink(missing_ok=True)
         args = [selected["path"], f"--user-data-dir={profile}", "--remote-debugging-address=127.0.0.1",
                 "--remote-debugging-port=0", "--no-first-run", "--no-default-browser-check",
-                "--disable-background-mode", f"--user-agent={USER_AGENT}", "--new-window", "about:blank"]
+                "--disable-background-mode", "--new-window", "about:blank"]
         if headless: args.insert(1, "--headless=new")
         if state.proxy:
             parsed = urlparse(state.proxy)
@@ -47,6 +46,9 @@ class ChromiumVerification:
         job["process"] = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         job["port_file"] = port_file
         job['cdpStartTimeout'] = 30
+        identity = await service._cdp(job, 'Browser.getVersion')
+        service.transport.adopt_browser_identity(url, identity['userAgent'],
+            (job['routeProxy'], job['routeGeneration']))
         await service._cdp(job, 'Storage.clearCookies')
         initial = snapshot(service.transport, url)
         await self.push(service, job, list(initial.values()))
@@ -57,7 +59,12 @@ class ChromiumVerification:
         job['cdpStartTimeout'] = 4
 
     async def cookies(self, service, job):
-        return (await service._cdp(job, "Storage.getCookies")).get("cookies", [])
+        if job.get('process') and job['process'].poll() is not None:
+            if 'capturedCookies' not in job:
+                raise ValueError('Le navigateur a fermé avant le transfert de session ; rouvrez la vérification.')
+            return job['capturedCookies']
+        job['capturedCookies'] = (await service._cdp(job, "Storage.getCookies")).get("cookies", [])
+        return job['capturedCookies']
 
     async def push(self, service, job, cookies):
         values = []
@@ -85,7 +92,16 @@ class ChromiumVerification:
 
 
 class WebViewVerification:
+    @staticmethod
+    def desktop_closed(job):
+        event = getattr(getattr(job.get('window'), 'events', None), 'closed', None)
+        return event is not None and event.is_set()
+
     async def open(self, service, job, state, browser=None):
+        identity = getattr(service.webview_opener, 'user_agent', None)
+        if identity:
+            service.transport.adopt_browser_identity(job['url'], await asyncio.to_thread(identity),
+                (job['routeProxy'], job['routeGeneration']))
         # Seed before navigation so the initial document receives the HTTP session.
         seed = getattr(service.webview_opener, 'seed_cookies', None)
         if seed:
@@ -93,6 +109,10 @@ class WebViewVerification:
         job['window'] = await asyncio.to_thread(service.webview_opener, job['url'])
 
     async def cookies(self, service, job):
+        if self.desktop_closed(job):
+            if 'capturedCookies' not in job:
+                raise ValueError('La fenêtre a fermé avant le transfert de session ; rouvrez la vérification.')
+            return job['capturedCookies']
         records = getattr(job['window'], 'get_cookie_records', None)
         if records:
             return await asyncio.to_thread(records)
@@ -104,13 +124,16 @@ class WebViewVerification:
                     'domain': morsel['domain'] or job['domain'], 'path': morsel['path'] or '/',
                     'secure': bool(morsel['secure']),
                     'expires': parsedate_to_datetime(expiry).timestamp() if expiry else None})
+        job['capturedCookies'] = cookies
         return cookies
 
     async def push(self, service, job, cookies):
+        if self.desktop_closed(job):
+            return
         setter = getattr(job['window'], 'set_cookies', None)
         if setter:
             await asyncio.to_thread(setter, cookies)
 
     async def close(self, job):
-        if job.get('window'):
+        if job.get('window') and not self.desktop_closed(job):
             await asyncio.to_thread(job['window'].destroy)

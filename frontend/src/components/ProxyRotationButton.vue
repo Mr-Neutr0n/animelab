@@ -1,5 +1,5 @@
 <template>
-  <span class="proxy-rotation-action">
+  <span v-if="geoBlocked" class="proxy-rotation-action">
     <button class="btn btn-secondary btn-sm" :disabled="busy" @click="rotate">
       {{ tx(busy ? 'Rotation en cours…' : 'Changer de proxy et réessayer') }}
     </button>
@@ -10,10 +10,31 @@
   </span>
 </template>
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { api } from '@/api/client'
 import { tx } from '@/utils/locale'
 const props = defineProps<{ domain: string; retry?: () => Promise<void> }>()
+const geoBlocked = ref(false)
+watch(
+  () => props.domain,
+  async (domain, _, onCleanup) => {
+    let current = true
+    onCleanup(() => {
+      current = false
+    })
+    geoBlocked.value = false
+    try {
+      const options = await api.getNetworkSessions()
+      if (current)
+        geoBlocked.value = options.sessions.some(
+          (session) => session.domain === domain && session.lastError === 'geo_blocked',
+        )
+    } catch {
+      /* A network failure is never evidence of a geographic block. */
+    }
+  },
+  { immediate: true },
+)
 const busy = ref(false),
   error = ref('')
 async function rotate() {

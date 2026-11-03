@@ -16,9 +16,9 @@ _loop = None
 def extension_http(payload):
     """Native default OkHttp gateway: keep the shared URL/cookie/proxy policy."""
     import base64
-    from animelab.services.source_http import source_http, VerificationRequired, RateLimited, SourceNetworkError, USER_AGENT
+    from animelab.services.source_http import source_http, VerificationRequired, RateLimited, SourceNetworkError
     if json.loads(payload).get('action') == 'user_agent':
-        return json.dumps({'userAgent':USER_AGENT})
+        return json.dumps({'userAgent':source_http.default_user_agent})
     async def request():
         data = json.loads(payload)
         body = base64.b64decode(data.get('body', ''), validate=True)
@@ -75,8 +75,7 @@ class VerificationWindow:
     def __init__(self, url, bridge):
         self.url, self.bridge = url, bridge
         self.metadata = {(item["domain"], item["path"], item["name"]): item for item in self._seeds.pop(url, [])}
-        from animelab.services.source_http import USER_AGENT
-        self.bridge.open(url, USER_AGENT)
+        self.bridge.open(url, str(self.bridge.userAgent()))
 
     def set_cookies(self, cookies):
         self._write_cookies(self.url, cookies, self.bridge)
@@ -152,6 +151,8 @@ def start(data_dir, cache_dir, port, token, test_mode=False):
         android_extensions.configure(jclass("com.animan.app.ExtensionBridge"))
     hooks = jclass("com.animan.app.NativeHooks")
     verification = jclass("com.animan.app.VerificationBridge")
+    from animelab.services.source_http import source_http
+    source_http.default_user_agent = source_http.valid_user_agent(str(verification.userAgent()))
     storage = jclass("com.animan.app.StorageAccess")
     update_environment(ANIMELAB_RELEASE_VERSION=str(jclass('com.animan.app.BuildConfig').RELEASE_VERSION))
     platform_events.storage_status_handler = lambda: json.loads(str(storage.status()))
@@ -164,6 +165,7 @@ def start(data_dir, cache_dir, port, token, test_mode=False):
     run.browser_verification.platform = "android"
     opener = lambda url: VerificationWindow(url, verification)
     opener.seed_cookies = lambda url, cookies: VerificationWindow.seed_cookies(url, cookies, verification)
+    opener.user_agent = lambda: str(verification.userAgent())
     run.browser_verification.webview_opener = opener
 
     def notify(task):

@@ -448,3 +448,76 @@ async def test_media_policy_checks_every_redirect_even_when_source_cache_is_warm
         assert error.value.status_code == 400
     assert visited == ['https://voir-anime.to/start']
     assert all(state.leased == 0 for state in service._domains.values())
+
+
+def test_browser_identity_is_scoped_persisted_and_used_for_metadata_and_cache(transport, tmp_path):
+    calls = []
+    def handler(session, method, url, kwargs):
+        calls.append(kwargs['headers'])
+        assert session.options['default_headers'] is False
+        return response(url)
+    service = transport(handler)
+    url = 'https://source.example/catalogue'
+    service.client().get(url, headers={'User-Agent': 'Extension supplied UA'})
+    assert calls[-1]['user-agent'] == 'Extension supplied UA'
+    service.import_cookies(url, [
+        {'name': 'cf_clearance', 'value': 'old', 'expires': time.time()+3600},
+        {'name': 'account', 'value': 'login', 'expires': time.time()+3600}])
+    state = service.state(url)
+    service.adopt_browser_identity(url, 'Actual browser UA', (state.proxy, state.generation))
+    assert [c.name for c in state.cookies] == ['account']
+    service.client().get(url, headers={'User-Agent': 'Extension supplied UA', 'sec-ch-ua-platform': '"Windows"'})
+    assert calls[-1]['user-agent'] == 'Actual browser UA'
+    assert 'sec-ch-ua-platform' not in calls[-1]
+    assert service.state('https://other.example/').user_agent is None
+    restarted = SourceHTTPService(storage=tmp_path)
+    try:
+        assert restarted.state(url).user_agent == 'Actual browser UA'
+        assert [c.name for c in restarted.state(url).cookies] == ['account']
+    finally:
+        restarted.close()
+    service.adopt_browser_identity(url, 'Updated browser UA')
+    before = len(calls)
+    service.client().get(url, headers={'User-Agent': 'Extension supplied UA', 'sec-ch-ua-platform': '"Windows"'})
+    assert len(calls) == before+1 and calls[-1]['user-agent'] == 'Updated browser UA'
+
+
+@pytest.mark.asyncio
+async def test_stream_and_redirect_use_their_own_domain_browser_identity(transport):
+    seen = []
+    def handler(session, method, url, kwargs):
+        seen.append((url, kwargs['headers']['user-agent']))
+        return RedirectRaw(url, 302, {'location': 'https://cdn.example/video.mp4'}) if 'source.example' in url else RedirectRaw(url)
+    service = transport(handler)
+    service.adopt_browser_identity('https://source.example', 'Source browser UA')
+    service.adopt_browser_identity('https://cdn.example', 'CDN browser UA')
+    async with service.async_client().stream('GET', 'https://source.example/watch', headers={'User-Agent': 'Extension UA'}) as stream:
+        assert b''.join([chunk async for chunk in stream.aiter_bytes()]) == b'ok'
+    assert [ua for _, ua in seen] == ['Source browser UA', 'CDN browser UA']
+
+
+@pytest.mark.parametrize('value', ['', 'UA\r\nCookie: injected=1', 'UA\x00', 'é', 'A'*2049])
+def test_browser_identity_rejects_invalid_headers_without_mutating_session(transport, value):
+    service = transport(lambda *args: None)
+    with pytest.raises(ValueError):
+        service.adopt_browser_identity('https://source.example', value)
+    assert service.state('https://source.example').user_agent is None
+
+
+def test_browser_identity_never_survives_a_route_change_or_wrong_owner_route(transport):
+    from animelab.api_errors import APIProblem
+    service = transport(lambda *args: None)
+    state = service.state('https://source.example')
+    service.adopt_browser_identity('https://source.example', 'Browser UA')
+    route = (state.proxy, state.generation)
+    service._change_proxy(state, 'http://new-route.example:8080')
+    assert state.user_agent is None
+    with pytest.raises(APIProblem):
+        service.adopt_browser_identity('https://source.example', 'Stale browser UA', route)
+
+
+def test_legacy_random_agent_preference_now_uses_a_stable_native_default(monkeypatch):
+    from animelab.services.source_http import source_http
+    monkeypatch.setattr(source_http, 'default_user_agent', 'Actual default WebView UA')
+    monkeypatch.setattr(proxy_service, 'selected_user_agent', 'Random (Rotator)')
+    assert {proxy_service.get_user_agent() for _ in range(12)} == {'Actual default WebView UA'}

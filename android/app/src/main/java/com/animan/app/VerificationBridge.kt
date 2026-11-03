@@ -2,12 +2,23 @@ package com.animan.app
 
 import android.content.Intent
 import android.webkit.CookieManager
+import android.webkit.WebSettings
 import org.json.JSONArray
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 object VerificationBridge {
+    @JvmStatic fun userAgent(): String {
+        val ready = CountDownLatch(1)
+        val result = AtomicReference<String?>(null)
+        EngineHost.main.post {
+            try { result.set(WebSettings.getDefaultUserAgent(EngineHost.context)) }
+            finally { ready.countDown() }
+        }
+        check(ready.await(5, TimeUnit.SECONDS)) { "WebView did not provide its user agent" }
+        return checkNotNull(result.get()) { "WebView user agent unavailable" }
+    }
     @Volatile var activity: VerificationActivity? = null
     @Volatile private var openedUrl: String? = null
     @JvmStatic fun open(url: String, userAgent: String) {

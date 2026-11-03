@@ -85,9 +85,8 @@ class VoirAnimeScrapingService:
         state = source_http.state(self.base_url)
         if state.blocked_url:
             blocked = state.blocked_url
-            if not source_http.rotate_proxy(urlparse(blocked).hostname or "", automatic=True):
-                raise VerificationRequired(blocked)
             self.last_cache_time = 0
+            raise VerificationRequired(blocked)
         if not self.latest_cache or time.time() - self.last_cache_time > 15 * 60:
             task = getattr(self, "_refresh_task", None)
             if task is None or task.done():

@@ -108,6 +108,9 @@ def install_error_handlers(app):
 
     @app.exception_handler(httpx.HTTPStatusError)
     async def upstream_error(request, exc):
+        if exc.response.extensions.get('animelab_geo_blocked'):
+            return JSONResponse(status_code=502, content={'error': 'Contenu indisponible dans votre pays ou région.',
+                'code': 'geo_blocked', 'domain': exc.request.url.host})
         status = 429 if exc.response.status_code == 429 else 502
         return JSONResponse(status_code=status, content={'error': MESSAGES['network'], 'code': 'upstream_error'})
 

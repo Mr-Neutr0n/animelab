@@ -44,7 +44,6 @@ def window_icon():
 def open_window(url=None, control_url=None, workdir=None, probe=False):
     import webview
     from webview.menu import Menu, MenuAction
-    from animelab.services.source_http import USER_AGENT
 
     marker = threading.Event()
     picker = DirectoryPicker(url) if not probe else None
@@ -85,10 +84,12 @@ def open_window(url=None, control_url=None, workdir=None, probe=False):
                              MenuAction('Quit / Quitter', window.destroy)])] if control_url else []
     from animelab.services.browser_verification import browser_verification
     if not probe:
-        browser_verification.webview_opener = lambda target: webview.create_window(
+        opener = lambda target: webview.create_window(
             'AnimeLab — Site verification', target, width=900, height=700)
+        opener.user_agent = lambda: window.evaluate_js('navigator.userAgent')
+        browser_verification.webview_opener = opener
     try:
-        webview.start(user_agent=USER_AGENT, icon=window_icon(), menu=menu,
+        webview.start(icon=window_icon(), menu=menu,
                       gui='edgechromium' if sys.platform == 'win32' else 'cocoa' if sys.platform == 'darwin' else 'gtk')
     finally:
         browser_verification.webview_opener = None

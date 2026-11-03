@@ -71,7 +71,7 @@ def test_browser_scope_rejects_subdomains_and_cookie_injection(transport):
 
 
 @pytest.mark.asyncio
-async def test_watcher_automatically_validates_resumes_and_exposes_completion(transport, tmp_path, monkeypatch):
+async def test_watcher_syncs_without_probe_then_resumes_after_browser_closes(transport, tmp_path, monkeypatch):
     service = BrowserVerificationService(transport, VerificationSettings(tmp_path / 'browser.json'))
     state = transport.state(URL)
     state.blocked_url = URL
@@ -80,13 +80,17 @@ async def test_watcher_automatically_validates_resumes_and_exposes_completion(tr
     mechanism = SimpleNamespace(cookies=AsyncMock(return_value=[*initial.values(), dict(name='cf_clearance', value='verified')]),
                                 push=AsyncMock(), close=AsyncMock())
     service.mechanisms['test'] = mechanism
-    service.jobs['test'] = dict(id='test', domain='source.example', url=URL, mode='test', created=time.monotonic(),
+    window = SimpleNamespace(is_closed=lambda: False)
+    service.jobs['test'] = dict(window=window, id='test', domain='source.example', url=URL, mode='test', created=time.monotonic(),
         routeProxy=None, routeGeneration=state.generation, browserCookies=initial, engineCookies=initial)
     calls = []
     service.verified_callback = lambda domain: calls.append(domain) or 2
-    monkeypatch.setattr(transport, 'request', lambda method, url, **kw: httpx.Response(200, request=httpx.Request(method, url)))
+    monkeypatch.setattr(transport, 'request', lambda *args, **kw: pytest.fail('No HTTP probe while browser owns session'))
     watcher = asyncio.create_task(service.watch())
     try:
+        await asyncio.sleep(1.15)
+        assert service.status('test')['status'] == 'pending' and calls == []
+        window.is_closed = lambda: True
         for _ in range(40):
             if service.status('test')['status'] == 'completed': break
             await asyncio.sleep(.1)
@@ -130,7 +134,7 @@ async def test_remote_clients_cannot_change_executable_or_read_browser_jobs(tran
 
 
 @pytest.mark.asyncio
-async def test_real_chromium_is_seeded_then_shares_cookies_both_ways_and_auto_resumes(tmp_path, monkeypatch):
+async def test_real_chromium_shares_native_identity_and_resumes_only_after_close(tmp_path, monkeypatch):
     """A local challenge fixture exercises a real browser; no production CAPTCHA."""
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
     import threading
@@ -191,11 +195,22 @@ async def test_real_chromium_is_seeded_then_shares_cookies_both_ways_and_auto_re
         assert any(c['name'] == 'refresh' and c['value'] == 'from-http' for c in remote)
         assert any(c.name == 'access' and c.value == 'fixture' for c in state.cookies)
         watcher = asyncio.create_task(service.watch())
+        await asyncio.sleep(1.15)
+        assert service.status(started['id'])['status'] == 'pending'
+        assert state.verification_owner == started['id'] and not callback
+        before = len(seen)
+        with pytest.raises(VerificationRequired):
+            await transport.async_client().get(base + '/episode', verify_challenge=True)
+        assert len(seen) == before
+        assert state.user_agent == (await service._cdp(job, 'Browser.getVersion'))['userAgent']
+        await service.mechanisms['browser'].close(job)
         for _ in range(100):
             if service.status(started['id'])['status'] == 'completed': break
             await asyncio.sleep(.1)
         assert service.status(started['id'])['status'] == 'completed'
         assert callback == ['127.0.0.1'] and state.blocked_url is None
+        assert len(seen) == before  # Completion itself sends no source request.
+        assert (await transport.async_client().get(base + '/episode')).status_code == 200
         assert any('session=engine-seed' in cookies and 'access=fixture' in cookies for cookies in seen)
     finally:
         if watcher:
@@ -209,7 +224,7 @@ async def test_real_chromium_is_seeded_then_shares_cookies_both_ways_and_auto_re
 def test_android_bridge_seeds_http_only_cookies_and_keeps_expiry_stable():
     from android_runtime import VerificationWindow
     headers, order = [], []
-    bridge = SimpleNamespace(setCookies=lambda url, data: (headers.extend(json.loads(data)), order.append('seed')),
+    bridge = SimpleNamespace(userAgent=lambda: 'Actual WebView UA', setCookies=lambda url, data: (headers.extend(json.loads(data)), order.append('seed')),
         open=lambda url, ua: order.append('open'), cookies=lambda url: 'session=seed; clearance=browser', close=lambda url: None)
     seed = dict(name='session', value='seed', domain='source.example', path='/', secure=True,
                 httpOnly=True, expires=time.time() + 120)
@@ -300,7 +315,7 @@ def test_webview_exchange_does_not_remove_cookies_outside_the_visible_url(transp
 
 def test_android_preserves_seeded_cookie_paths_on_refresh_and_ambiguous_names():
     from android_runtime import VerificationWindow
-    bridge = SimpleNamespace(setCookies=lambda *args: None, open=lambda *args: None,
+    bridge = SimpleNamespace(userAgent=lambda: 'Actual WebView UA', setCookies=lambda *args: None, open=lambda *args: None,
         cookies=lambda url: 'session=renewed', close=lambda *args: None)
     cookies = [dict(name='session', value='old', domain='source.example', path='/episode', secure=True, expires=None)]
     VerificationWindow.seed_cookies(URL, cookies, bridge)
@@ -320,7 +335,7 @@ def test_browser_sync_preserves_http_only_same_site_and_path(transport):
 
 
 @pytest.mark.asyncio
-async def test_completion_remains_readable_while_browser_closes(transport, tmp_path, monkeypatch):
+async def test_completion_waits_until_browser_has_actually_closed(transport, tmp_path, monkeypatch):
     service = BrowserVerificationService(transport, VerificationSettings(tmp_path / 'browser.json'))
     state = transport.state(URL)
     state.blocked_url = URL
@@ -330,14 +345,17 @@ async def test_completion_remains_readable_while_browser_closes(transport, tmp_p
         closing.set()
         await release.wait()
     service.mechanisms['test'] = SimpleNamespace(cookies=AsyncMock(return_value=[]), push=AsyncMock(), close=slow_close)
-    service.jobs['test'] = dict(id='test', domain='source.example', url=URL, mode='test', created=time.monotonic(),
+    window = SimpleNamespace(is_closed=lambda: False)
+    service.jobs['test'] = dict(window=window, id='test', domain='source.example', url=URL, mode='test', created=time.monotonic(),
         routeProxy=None, routeGeneration=state.generation, browserCookies=initial, engineCookies=initial)
-    monkeypatch.setattr(transport, 'request', lambda method, url, **kw: httpx.Response(200, request=httpx.Request(method, url)))
+    monkeypatch.setattr(transport, 'request', lambda *args, **kw: pytest.fail('No HTTP probe while browser owns session'))
     job = asyncio.create_task(service.complete('test'))
     try:
         await asyncio.wait_for(closing.wait(), 3)
-        assert service.status('test')['status'] == 'completed'
+        assert service.status('test')['status'] == 'pending'
+        assert state.blocked_url
     finally:
         release.set()
         assert (await job)['success']
+        assert service.status('test')['status'] == 'completed'
         await service.close()

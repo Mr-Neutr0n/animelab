@@ -41,6 +41,8 @@ class VerificationActivity : AppCompatActivity() {
                 }
             }
         }
+        CookieManager.getInstance().setAcceptCookie(true)
+        CookieManager.getInstance().setAcceptThirdPartyCookies(browser, true)
         layout.addView(browser, LinearLayout.LayoutParams(-1, 0, 1f))
         layout.addView(Button(this).apply {
             text = getString(R.string.return_to_animan)

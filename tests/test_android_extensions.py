@@ -149,10 +149,11 @@ def test_native_network_verification_is_not_hidden():
     assert error.value.domain=='fixture.example'
 
 
-def test_native_default_user_agent_matches_the_verification_session():
+def test_native_default_user_agent_matches_the_verification_session(monkeypatch):
     import android_runtime
-    from animelab.services.source_http import USER_AGENT
-    assert json.loads(android_runtime.extension_http('{"action":"user_agent"}'))=={'userAgent':USER_AGENT}
+    from animelab.services.source_http import source_http
+    monkeypatch.setattr(source_http, 'default_user_agent', 'Actual Android WebView UA')
+    assert json.loads(android_runtime.extension_http('{"action":"user_agent"}'))=={'userAgent':'Actual Android WebView UA'}
 
 
 @pytest.mark.parametrize('kind,expected',[

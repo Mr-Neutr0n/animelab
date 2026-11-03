@@ -1133,5 +1133,7 @@
   "Télécharger": "Download",
   "Version {0} installée": "Updated to version {0}",
   "Continuer": "Continue",
-  "Guide de démarrage": "Getting started guide"
+  "Guide de démarrage": "Getting started guide",
+  "Rotation automatique en cas de blocage géographique": "Automatically rotate proxies for geographic blocks",
+  "Uniquement si la source indique une restriction de pays ou de région. Aucun changement pour un CAPTCHA, un refus HTTP ordinaire ou une panne réseau.": "Only when the source reports a country or region restriction. No change for a CAPTCHA, an ordinary HTTP refusal or a network failure."
 }

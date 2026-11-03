@@ -85,6 +85,8 @@ async def rotate_proxy(body: StartVerification, request: Request):
         known = domain in source_http._domains
     if not known:
         raise HTTPException(400, "Aucune session connue pour cette source")
+    if source_http.state('https://' + domain).last_error != 'geo_blocked':
+        raise HTTPException(409, 'Le changement de proxy est réservé aux blocages géographiques identifiés.')
     if not proxy_pool.snapshot()["healthy"]:
         if not proxy_pool.entries:
             await proxy_pool.refresh()

@@ -21,10 +21,10 @@
           @change="setAutomatic"
         />
         <span
-          ><strong>{{ tx('Rotation automatique des sources bloquées') }}</strong
+          ><strong>{{ tx('Rotation automatique en cas de blocage géographique') }}</strong
           ><small>{{
             tx(
-              'S’applique aux catalogues, aux recherches et aux téléchargements. Deux changements maximum par domaine en cinq minutes ; aucun changement pendant un transfert en cours.',
+              'Uniquement si la source indique une restriction de pays ou de région. Aucun changement pour un CAPTCHA, un refus HTTP ordinaire ou une panne réseau.',
             )
           }}</small></span
         >
