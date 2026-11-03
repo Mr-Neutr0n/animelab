@@ -581,6 +581,21 @@ async def test_optional_file_refusal_does_not_poison_other_source_operations(tra
         assert await fetch(search) == b'Bleach'
 
 
+def test_inflight_file_refusal_does_not_downgrade_a_recorded_domain_challenge(transport):
+    service = transport(lambda *args: None)
+    challenge_url = 'https://source.example/catalogue/'
+    file_url = 'https://source.example/optional/episodes.js'
+    state = service.state(challenge_url)
+    for url, headers in [(challenge_url, {'cf-mitigated': 'challenge'}), (file_url, {})]:
+        response = httpx.Response(403, headers={'content-type': 'text/html', 'server': 'cloudflare', **headers},
+                                  text='Sorry, you have been blocked', request=httpx.Request('GET', url))
+        with pytest.raises(VerificationRequired):
+            service.classify(state, response, url)
+    assert state.blocked_url == challenge_url
+    assert state.blocked_scope == 'domain'
+    assert service.verification_required(state, 'https://source.example/another-page')
+
+
 def test_legacy_clearance_with_unknown_agent_is_removed_even_if_new_default_matches_browser(transport):
     service = transport(lambda *args: None)
     url = 'https://source.example'

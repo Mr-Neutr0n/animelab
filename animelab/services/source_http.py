@@ -385,8 +385,11 @@ class SourceHTTPService:
                 return
         if challenge or access_refusal:
             with state.condition:
-                state.blocked_url = str(url)
-                state.blocked_scope = 'domain' if challenge else 'url'
+                # A response already in flight must not downgrade a challenge
+                # recorded by another request to a file-only refusal.
+                if challenge or not state.blocked_url or state.blocked_scope != 'domain':
+                    state.blocked_url = str(url)
+                    state.blocked_scope = 'domain' if challenge else 'url'
                 state.last_error = "challenge"
             raise VerificationRequired(url)
         if not streaming:

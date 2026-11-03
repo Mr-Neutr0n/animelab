@@ -179,7 +179,9 @@ de l'APK a affiché les saisons de Bleach sur le téléphone. La correction dist
 désormais ce refus limité à une URL d'un véritable interstitiel, qui reste associé
 au domaine. Six régressions couvrent cette distinction pour les requêtes ordinaires,
 les réponses bornées et les flux, ainsi que le maintien de la suspension complète
-pendant l'ouverture du navigateur. Les opérations qui reçoivent effectivement un
+pendant l'ouverture du navigateur. Une septième régression conserve un challenge
+de domaine lorsqu'un refus de fichier arrive ensuite sur une requête déjà en vol.
+Les opérations qui reçoivent effectivement un
 refus continuent de le signaler ; aucun changement de proxy n'est déclenché.
 
 Avec le correctif `3d894e9`, un essai réel isolé sur PC a d'abord reçu ce même
