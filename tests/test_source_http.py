@@ -531,6 +531,56 @@ def test_custom_cloudflare_html_refusal_offers_assisted_verification(transport, 
     assert service.state('https://source.example').proxy is None
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize('mode', ['request', 'bounded', 'stream'])
+@pytest.mark.parametrize('interstitial', [False, True])
+async def test_optional_file_refusal_does_not_poison_other_source_operations(transport, mode, interstitial):
+    blocked = 'https://source.example/optional/episodes.js'
+    search = 'https://source.example/catalogue/?search=Bleach'
+    visited = []
+    class Raw(RedirectRaw):
+        def __init__(self, url, code, headers, body):
+            super().__init__(url, code, headers)
+            self.content = body
+    def handle(session, method, url, kwargs):
+        visited.append(url)
+        if url == blocked:
+            return Raw(url, 403, {'content-type': 'text/html', 'server': 'cloudflare',
+                **({'cf-mitigated': 'challenge'} if interstitial else {})},
+                b'<div id="cf-error-details">Sorry, you have been blocked</div>')
+        return Raw(url, 200, {'content-type': 'application/json'}, b'Bleach')
+    service = transport(handle)
+    async def fetch(url, **kwargs):
+        if mode == 'stream':
+            async with service.async_client().stream('GET', url, **kwargs) as stream:
+                return b''.join([chunk async for chunk in stream.aiter_bytes()])
+        response = await service.async_client().get(url,
+            **({'max_response_bytes': 4096} if mode == 'bounded' else {}), **kwargs)
+        return response.content
+    with pytest.raises(VerificationRequired):
+        await fetch(blocked)
+    assert service.state(blocked).blocked_scope == ('domain' if interstitial else 'url')
+    # Neither type of refusal should blindly retry the rejected resource.
+    with pytest.raises(VerificationRequired):
+        await fetch(blocked)
+    assert visited == [blocked]
+    if interstitial:
+        with pytest.raises(VerificationRequired):
+            await fetch(search)
+        assert visited == [blocked]
+    else:
+        assert await fetch(search) == b'Bleach'
+        # Opening a managed browser still pauses every request on this host,
+        # including operations with the internal challenge-verification flag.
+        service.pause_for_webview(blocked, 'reader')
+        before = list(visited)
+        with pytest.raises(VerificationRequired):
+            await fetch(search, verify_challenge=True)
+        assert visited == before
+        service.release_webview(blocked, 'reader')
+        assert await fetch(search) == b'Bleach'
+
+
 def test_legacy_clearance_with_unknown_agent_is_removed_even_if_new_default_matches_browser(transport):
     service = transport(lambda *args: None)
     url = 'https://source.example'

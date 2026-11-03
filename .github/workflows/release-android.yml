@@ -206,6 +206,8 @@ jobs:
         with:
           name: Android-under-test
           path: android-validation/*
+          # APKs already contain compressed entries; retain seekable ZIP storage.
+          compression-level: 0
           if-no-files-found: error
       - name: Remove temporary signing file
         if: always()

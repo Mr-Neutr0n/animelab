@@ -96,6 +96,7 @@ class DomainSession:
     next_request: float = 0.0
     cooldown: float = 0.0
     blocked_url: str | None = None
+    blocked_scope: str = 'domain'
     last_error: str | None = None
     generation: int = 0
     pending_reset: bool = False
@@ -356,10 +357,11 @@ class SourceHTTPService:
         html = "text/html" in response.headers.get("content-type", "").lower()
         body = response.text[:65536].lower() if html and not streaming else ""
         challenge = response.headers.get("cf-mitigated", "").lower() == "challenge"
-        # Like Aniyomi/Suwayomi, offer assisted verification for a Cloudflare
-        # HTML refusal even when its customized page omits standard markers.
-        challenge = challenge or (html and response.status_code in (403, 503)
-                                  and response.headers.get('server', '').lower() == 'cloudflare')
+        # A hard WAF refusal may affect only one file. Keep offering a browser,
+        # but do not let a failed optional episodes.js poison the whole source.
+        access_refusal = not streaming and html and (
+            (response.status_code in (403, 503) and response.headers.get('server', '').lower() == 'cloudflare')
+            or ('cf-error-details' in body and 'you have been blocked' in body))
         # Do not treat every 403/503 or every Cloudflare-served response as a challenge.
         challenge = challenge or (html and ("/cdn-cgi/challenge-platform/" in body)
                                   and ("cf-chl-" in body or "just a moment" in body))
@@ -367,7 +369,6 @@ class SourceHTTPService:
         # A CAPTCHA widget on a normal catalogue is not a verification page.
         challenge = challenge or (html and (
             "/.well-known/ddos-guard/js-challenge/" in body
-            or ("cf-error-details" in body and "you have been blocked" in body)
             or ("checking your browser" in body and "ddos-guard" in body)
             or (any(marker in body for marker in ("g-recaptcha", "h-captcha", "captcha-delivery.com"))
                 and (response.status_code in (403, 503)
@@ -382,14 +383,21 @@ class SourceHTTPService:
                 with state.condition:
                     state.last_error = 'geo_blocked'
                 return
-        if challenge:
+        if challenge or access_refusal:
             with state.condition:
                 state.blocked_url = str(url)
+                state.blocked_scope = 'domain' if challenge else 'url'
                 state.last_error = "challenge"
             raise VerificationRequired(url)
         if not streaming:
             with state.condition:
                 state.last_error = None if response.status_code < 400 else f'http_{response.status_code}'
+
+    @staticmethod
+    def verification_required(state, url, verifying=False):
+        return bool(state.verification_owner or (state.blocked_url and not verifying and (
+            state.blocked_scope == 'domain'
+            or state.blocked_url.split('#', 1)[0] == str(url).split('#', 1)[0])))
 
     @staticmethod
     def valid_user_agent(value):
@@ -502,7 +510,7 @@ class SourceHTTPService:
             if not is_safe_url(url):
                 raise ValueError("URL source non autorisée")
             state = self.state(url)
-            if state.verification_owner or (state.blocked_url and not verifying):
+            if self.verification_required(state, url, verifying):
                 raise VerificationRequired(state.blocked_url)
             for attempt in range(3):
                 self.pace(state)
@@ -752,7 +760,7 @@ class SourceStream:
             if not is_safe_url(url):
                 raise ValueError("URL source non autorisée")
             state = service.state(url)
-            if state.verification_owner or (state.blocked_url and not verifying):
+            if service.verification_required(state, url, verifying):
                 raise VerificationRequired(state.blocked_url)
             service.pace(state)
             self.lease = service.lease(state)
