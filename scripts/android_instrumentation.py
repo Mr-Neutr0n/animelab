@@ -55,7 +55,8 @@ def validate(app, tests, output, skip_native_media=False, package="com.animan.ap
         subprocess.run(["adb", "pull", f"/sdcard/Android/data/{package}/files/footprint.json",
                         str(output / "footprint.json")], timeout=15)
     print(report)
-    if result.returncode or not re.search(r"OK \(1 test\)", report) or "FAILURES" in report or "INSTRUMENTATION_FAILED" in report:
+    expected_tests = 3 if is_engine else 1
+    if result.returncode or not instrumentation_passed(report, expected_tests):
         raise RuntimeError("The installed Android engine did not pass instrumentation")
     if require_hardsub or probe_id:
         validate_hardsub_report(report + '\n' + (output / 'logcat.txt').read_text(), output, api,expected_probe_id=probe_id)
@@ -68,6 +69,12 @@ def validate(app, tests, output, skip_native_media=False, package="com.animan.ap
             footprint["apk_sha256"] = hashlib.file_digest(source, "sha256").hexdigest()
         footprint["package"] = package
         footprint_path.write_text(json.dumps(footprint, indent=2) + "\n")
+
+
+def instrumentation_passed(report, expected_tests):
+    summary = re.search(r"OK \((\d+) tests?\)", report)
+    return bool(summary and int(summary[1]) == expected_tests
+                and not any(marker in report for marker in ('FAILURES', 'INSTRUMENTATION_FAILED', 'INSTRUMENTATION_ABORTED')))
 
 
 def validate_hardsub_report(text, output, api, *, expected_probe_id=None):

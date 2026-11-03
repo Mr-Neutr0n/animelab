@@ -130,7 +130,11 @@ async def test_installed_chrome_cookie_exchange_with_local_server(tmp_path, monk
     browser_ua = []
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
-            observed.append((self.path, self.headers.get('User-Agent')))
+            # Chrome can fetch /favicon.ico after its initial page has loaded.
+            # Measure the blocked source operation, independently of those real
+            # browser requests; the unit probe test covers every transport URL.
+            if self.path == '/episode':
+                observed.append((self.path, self.headers.get('User-Agent')))
             if self.path == '/verify': browser_ua.append(self.headers.get('User-Agent'))
             verified=self.path=='/verify' or ('access=local-test' in self.headers.get('Cookie','') and self.headers.get('User-Agent') in browser_ua)
             self.send_response(200 if verified else 403)
