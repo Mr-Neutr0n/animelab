@@ -85,6 +85,7 @@ incorrecte perdrait notamment statuts, en-têtes, redirections ou données POST.
 | Rotation après réception partielle d'une vidéo | Suppression ; reprise Range/HLS sur la même route en conservant les données reçues. |
 | Proposition « changer de proxy » sur un challenge | Retirée du panneau de vérification ; autres boutons conditionnés au diagnostic géographique du serveur. |
 | Actualisation du pool public avant contrôle de la cause | Refus côté API avant toute actualisation si aucun blocage géographique n'est identifié. |
+| Refus WAF d'un fichier optionnel mettant toute la source en attente | Portée limitée à l'URL refusée ; les vrais interstitiels conservent la suspension du domaine. L'ouverture de la WebView suspend toujours tous ses appels. |
 
 Les refus HTML Cloudflare 403/503 personnalisés ouvrent aussi la vérification
 assistée, même sans les marqueurs habituels. Un refus ordinaire sans ces indices
@@ -115,8 +116,9 @@ mais ce n'est **pas l'adresse configurée dans l'extension installée**. Ce rés
 ne valide donc pas OtakuFR dans AnimeLab et ne justifie pas de changer son domaine
 sans vérifier la compatibilité de l'extension.
 
-Ces mesures portent sur cette machine et ce moment. Elles ne constituent ni
-une validation complète des trois extensions ni un essai sur téléphone.
+Ces premières mesures portent sur cette machine et ce moment. Elles ne constituent
+pas une validation complète des trois extensions. Les essais complémentaires sur
+le téléphone sont décrits ci-dessous.
 
 ## 5. Validation et limites
 
@@ -152,7 +154,39 @@ puis exige qu'une requête suivante réussisse sans exception échappée de
 l'exécuteur. L'instrumentation des APK optimisés inclut cette régression.
 Les routes catalogue/filtres conservent également les catégories réseau détaillées
 au lieu de toutes les masquer sous « La source est momentanément inaccessible ».
-La validation de ce complément sur le téléphone reste à exécuter.
+
+Un candidat optimisé signé, construit depuis `9677824`, a été installé par mise à
+jour sur le **Samsung SCV38, Android 10**, en conservant les données. Son certificat
+correspond à celui de l'application installée. Les **deux tests du pont** passent
+sur ce téléphone : lecteur fermé et exécuteur refusant une tâche. Le processus
+principal est ensuite resté ouvert plus de vingt minutes sans nouvelle exception
+`EPIPE`. L'exécution complète du candidat `c080a1e` passe aussi sur les émulateurs
+Android 11 et 15 : démarrage du moteur et deux régressions du pont. Android 10 x86
+valide les sondes natives, sans prétendre exécuter le moteur ARM64 complet.
+
+Le téléphone utilise **l'APK Anime-sama 14.33**, distinct de la recette PC 14.31.
+L'ouverture de l'accueil provoque un accès optionnel à
+`https://anime-sama.to/catalogue/dragon-ball-super/film/vostfr/episodes.js`.
+Cette URL renvoie un **HTTP 403 Cloudflare « Sorry, you have been blocked »**,
+sans challenge interactif ni indication géographique. Le même refus apparaît
+dans la véritable WebView Android. L'import de session ne permet donc pas
+d'affirmer que cette ressource est accessible.
+
+Le refus de ce fichier mettait jusqu'ici **tout le domaine** en vérification.
+Une recherche `Bleach` était ainsi rejetée avant même de contacter son catalogue.
+Après fermeture de la WebView et libération de cette attente, la recherche réelle
+de l'APK a affiché les saisons de Bleach sur le téléphone. La correction distingue
+désormais ce refus limité à une URL d'un véritable interstitiel, qui reste associé
+au domaine. Six régressions couvrent cette distinction pour les requêtes ordinaires,
+les réponses bornées et les flux, ainsi que le maintien de la suspension complète
+pendant l'ouverture du navigateur. Les opérations qui reçoivent effectivement un
+refus continuent de le signaler ; aucun changement de proxy n'est déclenché.
+
+Avec le correctif `3d894e9`, un essai réel isolé sur PC a d'abord reçu ce même
+refus sur `episodes.js`, puis recherché `Bleach` dans la même session, avec la
+recette extraite de l'APK 14.33 : **12 résultats en 5,9 secondes**, sans ouverture
+de navigateur ni rotation de proxy. Cet essai vérifie la reprise des autres URL,
+pas l'accès au fichier refusé ni la lecture de toutes les vidéos.
 
 Les essais d'interface vérifient la reprise et l'absence de promesse « accès
 vérifié ». L'instrumentation Android compare également l'UA exposé aux extensions
