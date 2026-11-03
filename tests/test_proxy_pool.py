@@ -446,3 +446,17 @@ def test_rotation_endpoint_never_refreshes_public_pool_for_a_captcha(pool, trans
         result = local.post('/api/network/proxy-pool/rotate', json={'domain': 'source.example'})
     assert result.status_code == 409
     refresh.assert_not_awaited()
+
+
+@pytest.mark.parametrize('body', [
+    '<h1>Error <span>1009</span></h1>',
+    '<h1>Error code: 1009</h1>',
+    '<div class="cf-error-details">You have been blocked. The owner has banned the country or region your IP address is in.</div>',
+])
+def test_cloudflare_country_refusal_is_geo_even_with_html_markup(pool, transport, body):
+    service = transport(lambda s, m, u, k: response(u, 403, text=body,
+        headers={'server': 'cloudflare', 'content-type': 'text/html'}))
+    result = service.client().get('https://source.example')
+    assert result.extensions['animelab_geo_blocked'] is True
+    state = service.state('https://source.example')
+    assert state.last_error == 'geo_blocked' and not state.blocked_url

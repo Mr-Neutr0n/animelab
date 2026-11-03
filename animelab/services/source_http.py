@@ -8,6 +8,7 @@ import copy
 import hashlib
 import json
 import os
+import re
 from animelab.environment import getenv
 import threading
 import time
@@ -48,6 +49,13 @@ class SourceNetworkError(httpx.ConnectError):
     def __init__(self, message, kind, url):
         self.kind = kind
         super().__init__(message, request=httpx.Request("GET", url))
+
+
+def network_error_kind(error):
+    message = str(error).lower()
+    return ('tls' if any(word in message for word in ('certificate', 'ssl', 'tls')) else
+            'dns' if 'resolve' in message else
+            'timeout' if 'timed out' in message or 'timeout' in message else 'network')
 
 
 class RateLimited(httpx.HTTPStatusError):
@@ -348,6 +356,10 @@ class SourceHTTPService:
         html = "text/html" in response.headers.get("content-type", "").lower()
         body = response.text[:65536].lower() if html and not streaming else ""
         challenge = response.headers.get("cf-mitigated", "").lower() == "challenge"
+        # Like Aniyomi/Suwayomi, offer assisted verification for a Cloudflare
+        # HTML refusal even when its customized page omits standard markers.
+        challenge = challenge or (html and response.status_code in (403, 503)
+                                  and response.headers.get('server', '').lower() == 'cloudflare')
         # Do not treat every 403/503 or every Cloudflare-served response as a challenge.
         challenge = challenge or (html and ("/cdn-cgi/challenge-platform/" in body)
                                   and ("cf-chl-" in body or "just a moment" in body))
@@ -361,11 +373,11 @@ class SourceHTTPService:
                 and (response.status_code in (403, 503)
                      or any(title in body for title in ("<title>verify", "<title>security check", "<title>are you human"))))))
         if not streaming and not response.headers.get('cf-mitigated') and response.status_code in (403, 451):
-            text = response.text[:65536].lower()
+            text = ' '.join(re.sub(r'<[^>]+>', ' ', response.text[:65536].lower()).split())
             if any(marker in text for marker in ('not available in your country', 'not available in your region',
                     'not available in your location', 'geographic restriction', 'geographical restriction',
                     'geo-blocked', 'geoblocked', 'indisponible dans votre pays', 'indisponible dans votre région',
-                    'banned your country', 'error 1009')):
+                    'banned your country', 'banned the country or region')) or re.search(r'\berror\s*(?:code\s*)?:?\s*1009\b', text):
                 response.extensions['animelab_geo_blocked'] = True
                 with state.condition:
                     state.last_error = 'geo_blocked'
@@ -394,11 +406,9 @@ class SourceHTTPService:
                 raise APIProblem('verification_route_changed', status=409, category='protection', action='verify')
             if state.user_agent != user_agent:
                 # Clearance belongs to its browser identity; keep unrelated login cookies.
-                previous = state.user_agent or self.default_user_agent
-                if previous != user_agent:
-                    for cookie in list(state.cookies):
-                        if cookie.name in ('cf_clearance', '__cf_bm'):
-                            state.cookies.clear(cookie.domain, cookie.path, cookie.name)
+                for cookie in list(state.cookies):
+                    if cookie.name in ('cf_clearance', '__cf_bm'):
+                        state.cookies.clear(cookie.domain, cookie.path, cookie.name)
                 state.user_agent = user_agent
                 self._save(state)
 
@@ -506,9 +516,7 @@ class SourceHTTPService:
                 except Exception as exc:
                     if isinstance(exc, (VerificationRequired, ValueError)):
                         raise
-                    message = str(exc).lower()
-                    kind = "tls" if any(x in message for x in ("certificate", "ssl", "tls")) else (
-                        "dns" if "resolve" in message else ("timeout" if "timed out" in message or "timeout" in message else "network"))
+                    kind = network_error_kind(exc)
                     state.last_error = kind
                     if kind == "tls" or attempt == 2 or method not in ("GET", "HEAD"):
                         raise SourceNetworkError(f"Erreur réseau ({kind}) pour {state.domain}", kind, url) from exc
@@ -791,8 +799,7 @@ class SourceStream:
                 return self.response
             except CurlRequestError as exc:
                 self.close()
-                message = str(exc).lower()
-                kind = "tls" if any(x in message for x in ("ssl", "tls", "certificate")) else "network"
+                kind = network_error_kind(exc)
                 state.last_error = kind
                 raise SourceNetworkError(f"Erreur réseau ({kind}) pour {state.domain}", kind, url) from exc
             except BaseException:
@@ -842,8 +849,7 @@ class SourceStreamResponse:
             try:
                 chunk = await asyncio.to_thread(next, iterator, sentinel)
             except CurlRequestError as exc:
-                message = str(exc).lower()
-                kind = "tls" if any(x in message for x in ("ssl", "tls", "certificate")) else "network"
+                kind = network_error_kind(exc)
                 raise SourceNetworkError(f"Lecture du média interrompue ({kind}) pour {self.url.host}",
                                          kind, str(self.url)) from exc
             if chunk is sentinel:

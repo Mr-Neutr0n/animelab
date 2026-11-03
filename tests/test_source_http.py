@@ -521,3 +521,33 @@ def test_legacy_random_agent_preference_now_uses_a_stable_native_default(monkeyp
     monkeypatch.setattr(source_http, 'default_user_agent', 'Actual default WebView UA')
     monkeypatch.setattr(proxy_service, 'selected_user_agent', 'Random (Rotator)')
     assert {proxy_service.get_user_agent() for _ in range(12)} == {'Actual default WebView UA'}
+
+
+@pytest.mark.parametrize('status', [403, 503])
+def test_custom_cloudflare_html_refusal_offers_assisted_verification(transport, status):
+    service = transport(lambda s, m, u, k: response(u, status, text='<html>Accès refusé par le site</html>',
+        headers={'server': 'cloudflare', 'content-type': 'text/html'}))
+    with pytest.raises(VerificationRequired): service.client().get('https://source.example')
+    assert service.state('https://source.example').proxy is None
+
+
+def test_legacy_clearance_with_unknown_agent_is_removed_even_if_new_default_matches_browser(transport):
+    service = transport(lambda *args: None)
+    url = 'https://source.example'
+    service.default_user_agent = 'Native browser UA'
+    service.import_cookies(url, [{'name': 'cf_clearance', 'value': 'legacy'}, {'name': 'account', 'value': 'login'}])
+    service.adopt_browser_identity(url, 'Native browser UA')
+    assert [c.name for c in service.state(url).cookies] == ['account']
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('message,kind', [('Could not resolve host', 'dns'), ('Operation timed out', 'timeout'), ('SSL certificate problem', 'tls')])
+async def test_stream_opening_preserves_network_failure_category_without_considering_proxy(transport, monkeypatch, message, kind):
+    from curl_cffi.requests.exceptions import RequestException
+    def handler(*args): raise RequestException(message)
+    service = transport(handler)
+    monkeypatch.setattr(service, 'rotate_proxy', lambda *args, **kwargs: pytest.fail('A network error must not consider a proxy'))
+    with pytest.raises(SourceNetworkError) as caught:
+        async with service.async_client().stream('GET', 'https://source.example/video.mp4'):
+            pass
+    assert caught.value.kind == kind

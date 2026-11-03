@@ -77,7 +77,7 @@ incorrecte perdrait notamment statuts, en-têtes, redirections ou données POST.
 | En-têtes de navigateur ajoutés implicitement par curl | Désactivation des en-têtes automatiques ; suppression des client hints `sec-ch-ua*` incompatibles lorsque l'identité du domaine a été apprise. |
 | Ancienne option « Random (Rotator) » changeant l'UA des appels natifs | Cette préférence historique utilise désormais le fournisseur stable par défaut. |
 | UA du navigateur perdu au redémarrage | Persistance par domaine avec les cookies, liée à la même route ; suppression lors d'un changement de route. |
-| Cookies de clearance associés à l'ancienne identité | Suppression de `cf_clearance` et `__cf_bm` lors d'un changement d'UA appris ; conservation des autres cookies de connexion. |
+| Cookies de clearance associés à l'ancienne identité | Suppression de `cf_clearance` et `__cf_bm` lors d'un changement d'UA appris, y compris les sessions historiques sans UA connu ; conservation des autres cookies de connexion. |
 | Appels HTTP concurrents pendant la vérification Chromium | Même verrou de session que pour WebView : drain des connexions existantes, refus des nouvelles requêtes et flux. |
 | Sonde HTTP exécutée alors que Chromium est ouvert | Suppression de la sonde ; import, fermeture, libération de la source, puis reprise de l'opération. |
 | Reprise déclenchée au simple changement d'un cookie | Synchronisation seule pendant l'ouverture ; reprise à la confirmation ou à la fermeture observée. |
@@ -85,6 +85,11 @@ incorrecte perdrait notamment statuts, en-têtes, redirections ou données POST.
 | Rotation après réception partielle d'une vidéo | Suppression ; reprise Range/HLS sur la même route en conservant les données reçues. |
 | Proposition « changer de proxy » sur un challenge | Retirée du panneau de vérification ; autres boutons conditionnés au diagnostic géographique du serveur. |
 | Actualisation du pool public avant contrôle de la cause | Refus côté API avant toute actualisation si aucun blocage géographique n'est identifié. |
+
+Les refus HTML Cloudflare 403/503 personnalisés ouvrent aussi la vérification
+assistée, même sans les marqueurs habituels. Un refus ordinaire sans ces indices
+reste distinct d'un challenge. Les flux remontent désormais les catégories DNS,
+TLS et timeout aussi précisément que les requêtes synchrones.
 
 Un challenge explicite `cf-mitigated: challenge` garde priorité sur un texte
 mentionnant un pays. Les restrictions géographiques reconnues comprennent des
@@ -122,7 +127,7 @@ Range/HLS après interruption. Des tests avec le **Chrome réellement installé*
 exercent les échanges CDP et imposent la fermeture avant reprise ; un serveur
 local exige à la fois le cookie reçu et le véritable UA du navigateur.
 
-Résultats locaux : **1 080 tests Python réussis, 5 ignorés**, contrôles Ruff et
+Résultats locaux : **plus de 1 000 tests Python réussis, 5 ignorés**, contrôles Ruff et
 Mypy réussis, **37 tests frontend réussis**, compilation Vue réussie et **5 essais
 Playwright ciblés réussis** dans le Chrome installé (mobile/desktop, français et
 anglais, reprise et politique des proxys). Aucun appareil n'était connecté à ADB
