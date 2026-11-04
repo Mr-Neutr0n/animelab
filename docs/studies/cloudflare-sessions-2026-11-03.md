@@ -250,6 +250,15 @@ sur les émulateurs Android 10, 11 et 15. Les résultats complémentaires du can
 signé avec cette correction sont consignés dans la
 [validation de la PR nº 39](https://github.com/loeuf237/animelab/pull/39).
 
+Le contrôle réel a aussi identifié un délai trop court dans la recherche globale :
+les APK, identifiés par un numéro de source, étaient annulés au bout de 12 secondes
+alors que leurs appels peuvent développer saisons et films. Le moteur PC disposait
+déjà d'un budget plus large pour ces catalogues. Les recherches APK disposent
+désormais de 60 secondes côté API, pour laisser répondre leur worker borné à
+45 secondes et sa passerelle parent bornée à 55 secondes. Six régressions vérifient
+qu'une expansion peut finir après l'ancien délai et qu'un appel bloqué reste annulé,
+en recherche ciblée comme en recherche globale.
+
 Les essais d'interface vérifient la reprise et l'absence de promesse « accès
 vérifié ». L'instrumentation Android compare également l'UA exposé aux extensions
 à celui du WebView installé. Une compilation ne remplace pas l'exécution de cette

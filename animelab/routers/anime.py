@@ -43,10 +43,15 @@ async def search_api(
         selected[0].require('search')
 
     async def run(service):
-        recipe = getattr(getattr(service, 'service', service), 'recipe', None)
+        provider = getattr(service, 'service', service)
+        recipe = getattr(provider, 'recipe', None)
         expands = bool(recipe and recipe.runtime.get('listing_expansion'))
         source_id = getattr(service, 'id', getattr(service, 'pkg', ''))
-        timeout = 45 if expands or source_id.endswith('.franime') else 12
+        # APK searches can expand seasons and films using several HTTP calls.
+        # Let their bounded worker (45 s) and parent gateway (55 s) finish;
+        # cancelling them after 12 s turns a healthy source into an error.
+        timeout = 60 if getattr(provider, 'runtime', '') == 'android-apk' else (
+            45 if expands or source_id.endswith('.franime') else 12)
         return await asyncio.wait_for(service.search_anime(q.strip()), timeout=timeout)
 
     responses = await asyncio.gather(*(run(service) for _, service in providers), return_exceptions=True)

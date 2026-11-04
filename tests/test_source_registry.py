@@ -1,6 +1,7 @@
 """A04: same identities and real capabilities across source entry points."""
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
+import asyncio
 
 import pytest
 
@@ -63,3 +64,36 @@ async def test_unknown_or_disabled_source_never_falls_back_and_capabilities_do_n
         with pytest.raises(APIProblem) as failure: registry.get(sid)
         assert failure.value.status==404
     assert registry.detect('https://french-manga.example.evil.invalid/series','missing')=='missing'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('selection', ['specific', 'all'])
+@pytest.mark.parametrize('runtime,delay,succeeds', [('android-apk', .2, True),
+    ('recipe', .2, False), ('android-apk', 1, False)])
+async def test_apk_search_can_finish_season_expansion_and_still_has_a_deadline(monkeypatch,selection,runtime,delay,succeeds):
+    source=provider('fixture')
+    source.pkg='fixture.extension'
+    source.source_id='aniyomi:6170936930338275444' if runtime=='android-apk' else 'fixture.extension'
+    source.runtime=runtime
+    source.supports_latest=True
+    cancelled=False
+    async def search(query):
+        nonlocal cancelled
+        try:
+            await asyncio.sleep(delay)
+            return [AnimeResult(id='season1',title='Bleach Saison 1',url=source.base_url+'/season1')]
+        except asyncio.CancelledError:
+            cancelled=True
+            raise
+    source.search_anime=search
+    extensions=SimpleNamespace(get_enabled_container_sources=lambda:[source],get_container_source_by_id=lambda key:source)
+    monkeypatch.setattr(router,'source_registry',SourceRegistry(natives={},extensions=extensions))
+    # Scale wall time while exercising real wait_for cancellation and cleanup.
+    wait_for=asyncio.wait_for
+    async def scaled_wait_for(work,timeout):
+        return await wait_for(work,timeout=timeout/100)
+    monkeypatch.setattr(router.asyncio,'wait_for',scaled_wait_for)
+    result=await router.search_api('Bleach',source.source_id if selection=='specific' else 'all',True)
+    assert bool(result['results']) is succeeds
+    assert bool(result['errors']) is not succeeds
+    assert cancelled is not succeeds
