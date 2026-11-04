@@ -190,7 +190,7 @@ recette extraite de l'APK 14.33 : **12 résultats en 5,9 secondes**, sans ouvert
 de navigateur ni rotation de proxy. Cet essai vérifie la reprise des autres URL,
 pas l'accès au fichier refusé ni la lecture de toutes les vidéos.
 
-### Validation du candidat final sur le SCV38
+### Premier candidat de contrôle sur le SCV38
 
 Le candidat signé construit depuis `2322836a970bb40fda425ee93199572d94bbe371`
 a ensuite été installé comme mise à jour sur le même téléphone. Son empreinte
@@ -242,6 +242,13 @@ Cette adaptation de compatibilité est propre à AnimeLab ; ce n'est pas un
 comportement attribué à l'intercepteur Cloudflare d'Aniyomi. La régression Android
 exerce le véritable client de source dérivé jusqu'au pont, avec un transport
 contrôlé, et vérifie la portée ainsi que la conservation des en-têtes.
+
+Complément du 4 novembre : le moteur PC, avec la recette extraite de l'APK 14.33,
+renvoie **12 résultats de recherche et 366 épisodes pour Bleach Saison 1** en
+11,1 secondes au total. Les tests du runtime incluant la portée du Referer passent
+sur les émulateurs Android 10, 11 et 15. Les résultats complémentaires du candidat
+signé avec cette correction sont consignés dans la
+[validation de la PR nº 39](https://github.com/loeuf237/animelab/pull/39).
 
 Les essais d'interface vérifient la reprise et l'absence de promesse « accès
 vérifié ». L'instrumentation Android compare également l'UA exposé aux extensions
