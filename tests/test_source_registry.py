@@ -73,9 +73,11 @@ def test_explicit_apk_identity_wins_over_another_provider_on_the_same_domain():
     apk.base_url = native.base_url
     apk.pkg = 'fixture.voiranime'
     apk.source_id = 'aniyomi:1152921504606846977'
-    extensions = SimpleNamespace(get_enabled_container_sources=lambda: [apk])
+    extensions = SimpleNamespace(get_enabled_container_sources=lambda: [apk],
+        get_container_source_by_id=lambda sid: apk if sid == apk.pkg else None)
     registry = SourceRegistry({'voir-anime': native}, extensions)
     assert registry.detect(native.base_url+'/series', apk.source_id) == apk.source_id
+    assert registry.detect(native.base_url+'/series', apk.pkg) == apk.source_id
     assert registry.detect(native.base_url+'/series', 'voir-anime') == 'voir-anime'
     assert registry.detect('https://voiranime.example.evil.invalid/series', apk.source_id) == apk.source_id
 

@@ -199,9 +199,15 @@ class SourceRegistry:
                    'voir-anime': ('voir-anime.to', 'voiranime.to', 'voiranime.io', 'voiranime.homes'),
                    'french-manga': ('french-manga.net',)}
         providers = self.all()
+        preferred_id = fallback.strip().lower()
+        if not any(provider.id == preferred_id for provider in providers):
+            resolve_alias = getattr(self.extensions(), 'get_container_source_by_id', None)
+            selected = resolve_alias(preferred_id) if resolve_alias is not None else None
+            if selected is not None:
+                preferred_id = source_identity(selected, preferred_id)
         # Several runtimes can serve the same site. Keep the selected source
         # when its origin matches, before considering automatic detection.
-        providers.sort(key=lambda provider: provider.id != fallback)
+        providers.sort(key=lambda provider: provider.id != preferred_id)
         for provider in providers:
             domains = [urlparse(provider.base_url).hostname or ''] + list(aliases.get(provider.id, ()))
             if any(domain and (host == domain or host.endswith('.' + domain)) for domain in domains):

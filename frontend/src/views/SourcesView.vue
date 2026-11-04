@@ -330,15 +330,13 @@ const groups = computed(() => {
   const labels: Record<string, string> = { fr: 'Français', en: 'English', all: 'Multilingue' }
   return [
     ...(pinned.length ? [{ type: 'pinned', label: 'Épinglées', sources: pinned }] : []),
-    ...[...new Set(remaining.map((s) => s.lang))]
-      .sort()
-      .map((lang) => ({
-        type: lang,
-        label: labels[lang] || lang.toUpperCase(),
-        sources: remaining
-          .filter((s) => s.lang === lang)
-          .sort((a, b) => a.name.localeCompare(b.name)),
-      })),
+    ...[...new Set(remaining.map((s) => s.lang))].sort().map((lang) => ({
+      type: lang,
+      label: labels[lang] || lang.toUpperCase(),
+      sources: remaining
+        .filter((s) => s.lang === lang)
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    })),
     ...(!visible.length ? [{ type: 'empty', label: 'Sources', sources: [] }] : []),
   ]
 })
