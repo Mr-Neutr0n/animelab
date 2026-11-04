@@ -253,3 +253,39 @@ async def test_remote_client_options_do_not_offer_server_windows(service, monkey
         assert not options['clientLocal'] and not options['browsers']
         assert all(not mode['available'] for mode in options['modes'] if mode['id'] != 'manual')
         assert (await client.post('/api/network/verification', json={'domain': 'source.example', 'mode': 'webview'})).status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_webview_uses_native_identity_before_seeding_and_navigation(service, monkeypatch):
+    browser, state = service
+    order = []
+    browser.webview_opener.user_agent = lambda: order.append('identity') or 'Actual native WebView UA'
+    def seed(url, cookies):
+        assert state.user_agent == 'Actual native WebView UA'
+        assert state.verification_owner
+        order.append('seed')
+    browser.webview_opener.seed_cookies = seed
+    monkeypatch.setattr('animelab.services.browser_verification.is_safe_url', lambda url: True)
+    job = await browser.start('source.example', mode='webview')
+    assert order == ['identity', 'seed']
+    await browser.complete(job['id'])
+    assert state.user_agent == 'Actual native WebView UA' and state.verification_owner is None
+
+
+@pytest.mark.asyncio
+async def test_closed_desktop_webview_reuses_scoped_capture_without_touching_destroyed_native_window(service, monkeypatch):
+    import threading
+    from types import SimpleNamespace
+    browser, state = service
+    closed = threading.Event()
+    window = SimpleNamespace(events=SimpleNamespace(closed=closed),
+        get_cookies=lambda: [SimpleCookie('cf_clearance=captured')], destroy=lambda: pytest.fail('Already closed'))
+    browser.webview_opener = lambda url: window
+    monkeypatch.setattr('animelab.services.browser_verification.is_safe_url', lambda url: True)
+    job = await browser.start('source.example', mode='webview')
+    await browser.synchronize(browser.jobs[job['id']])
+    closed.set()
+    window.get_cookies = lambda: pytest.fail('Native browser has been destroyed')
+    result = await browser.complete(job['id'])
+    assert result['sessionImported'] and result['accessVerified'] is False
+    assert [c.value for c in state.cookies] == ['captured']

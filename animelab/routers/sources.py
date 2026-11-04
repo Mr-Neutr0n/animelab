@@ -3,7 +3,6 @@ from animelab.services.source_http import VerificationRequired
 import logging
 from typing import Dict, Any
 from fastapi import APIRouter, Request, HTTPException, Query
-import httpx
 from fastapi.responses import JSONResponse
 
 from animelab.services.source_settings_service import source_settings_service
@@ -27,8 +26,8 @@ async def catalogue_filters(source_id: str):
                 **({'nativeFilters':filters['nativeFilters']} if 'nativeFilters' in filters else {})}
     except CatalogueError as exc:
         raise HTTPException(400, str(exc)) from exc
-    except httpx.HTTPError as exc:
-        raise HTTPException(502, "Impossible de charger les filtres de cette source") from exc
+    # Transport failures retain their typed API handlers (DNS, TLS, rate
+    # limiting and geographic refusal), just like direct source searches.
 
 
 @router.get("/{source_id}/catalogue")
@@ -48,8 +47,6 @@ async def browse_catalogue(source_id: str, mode: str = 'latest', q: str = Query(
         raise HTTPException(400, str(exc)) from exc
     except (ValueError,RecursionError) as exc:
         raise HTTPException(400,'Filtres de source invalides.') from exc
-    except httpx.HTTPError as exc:
-        raise HTTPException(502, "La source est momentanément inaccessible") from exc
 
 
 @router.get("/settings")

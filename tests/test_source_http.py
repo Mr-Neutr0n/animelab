@@ -448,3 +448,171 @@ async def test_media_policy_checks_every_redirect_even_when_source_cache_is_warm
         assert error.value.status_code == 400
     assert visited == ['https://voir-anime.to/start']
     assert all(state.leased == 0 for state in service._domains.values())
+
+
+def test_browser_identity_is_scoped_persisted_and_used_for_metadata_and_cache(transport, tmp_path):
+    calls = []
+    def handler(session, method, url, kwargs):
+        calls.append(kwargs['headers'])
+        assert session.options['default_headers'] is False
+        return response(url)
+    service = transport(handler)
+    url = 'https://source.example/catalogue'
+    service.client().get(url, headers={'User-Agent': 'Extension supplied UA'})
+    assert calls[-1]['user-agent'] == 'Extension supplied UA'
+    service.import_cookies(url, [
+        {'name': 'cf_clearance', 'value': 'old', 'expires': time.time()+3600},
+        {'name': 'account', 'value': 'login', 'expires': time.time()+3600}])
+    state = service.state(url)
+    service.adopt_browser_identity(url, 'Actual browser UA', (state.proxy, state.generation))
+    assert [c.name for c in state.cookies] == ['account']
+    service.client().get(url, headers={'User-Agent': 'Extension supplied UA', 'sec-ch-ua-platform': '"Windows"'})
+    assert calls[-1]['user-agent'] == 'Actual browser UA'
+    assert 'sec-ch-ua-platform' not in calls[-1]
+    assert service.state('https://other.example/').user_agent is None
+    restarted = SourceHTTPService(storage=tmp_path)
+    try:
+        assert restarted.state(url).user_agent == 'Actual browser UA'
+        assert [c.name for c in restarted.state(url).cookies] == ['account']
+    finally:
+        restarted.close()
+    service.adopt_browser_identity(url, 'Updated browser UA')
+    before = len(calls)
+    service.client().get(url, headers={'User-Agent': 'Extension supplied UA', 'sec-ch-ua-platform': '"Windows"'})
+    assert len(calls) == before+1 and calls[-1]['user-agent'] == 'Updated browser UA'
+
+
+@pytest.mark.asyncio
+async def test_stream_and_redirect_use_their_own_domain_browser_identity(transport):
+    seen = []
+    def handler(session, method, url, kwargs):
+        seen.append((url, kwargs['headers']['user-agent']))
+        return RedirectRaw(url, 302, {'location': 'https://cdn.example/video.mp4'}) if 'source.example' in url else RedirectRaw(url)
+    service = transport(handler)
+    service.adopt_browser_identity('https://source.example', 'Source browser UA')
+    service.adopt_browser_identity('https://cdn.example', 'CDN browser UA')
+    async with service.async_client().stream('GET', 'https://source.example/watch', headers={'User-Agent': 'Extension UA'}) as stream:
+        assert b''.join([chunk async for chunk in stream.aiter_bytes()]) == b'ok'
+    assert [ua for _, ua in seen] == ['Source browser UA', 'CDN browser UA']
+
+
+@pytest.mark.parametrize('value', ['', 'UA\r\nCookie: injected=1', 'UA\x00', 'é', 'A'*2049])
+def test_browser_identity_rejects_invalid_headers_without_mutating_session(transport, value):
+    service = transport(lambda *args: None)
+    with pytest.raises(ValueError):
+        service.adopt_browser_identity('https://source.example', value)
+    assert service.state('https://source.example').user_agent is None
+
+
+def test_browser_identity_never_survives_a_route_change_or_wrong_owner_route(transport):
+    from animelab.api_errors import APIProblem
+    service = transport(lambda *args: None)
+    state = service.state('https://source.example')
+    service.adopt_browser_identity('https://source.example', 'Browser UA')
+    route = (state.proxy, state.generation)
+    service._change_proxy(state, 'http://new-route.example:8080')
+    assert state.user_agent is None
+    with pytest.raises(APIProblem):
+        service.adopt_browser_identity('https://source.example', 'Stale browser UA', route)
+
+
+def test_legacy_random_agent_preference_now_uses_a_stable_native_default(monkeypatch):
+    from animelab.services.source_http import source_http
+    monkeypatch.setattr(source_http, 'default_user_agent', 'Actual default WebView UA')
+    monkeypatch.setattr(proxy_service, 'selected_user_agent', 'Random (Rotator)')
+    assert {proxy_service.get_user_agent() for _ in range(12)} == {'Actual default WebView UA'}
+
+
+@pytest.mark.parametrize('status', [403, 503])
+def test_custom_cloudflare_html_refusal_offers_assisted_verification(transport, status):
+    service = transport(lambda s, m, u, k: response(u, status, text='<html>Accès refusé par le site</html>',
+        headers={'server': 'cloudflare', 'content-type': 'text/html'}))
+    with pytest.raises(VerificationRequired): service.client().get('https://source.example')
+    assert service.state('https://source.example').proxy is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('mode', ['request', 'bounded', 'stream'])
+@pytest.mark.parametrize('interstitial', [False, True])
+async def test_optional_file_refusal_does_not_poison_other_source_operations(transport, mode, interstitial):
+    blocked = 'https://source.example/optional/episodes.js'
+    search = 'https://source.example/catalogue/?search=Bleach'
+    visited = []
+    class Raw(RedirectRaw):
+        def __init__(self, url, code, headers, body):
+            super().__init__(url, code, headers)
+            self.content = body
+    def handle(session, method, url, kwargs):
+        visited.append(url)
+        if url == blocked:
+            return Raw(url, 403, {'content-type': 'text/html', 'server': 'cloudflare',
+                **({'cf-mitigated': 'challenge'} if interstitial else {})},
+                b'<div id="cf-error-details">Sorry, you have been blocked</div>')
+        return Raw(url, 200, {'content-type': 'application/json'}, b'Bleach')
+    service = transport(handle)
+    async def fetch(url, **kwargs):
+        if mode == 'stream':
+            async with service.async_client().stream('GET', url, **kwargs) as stream:
+                return b''.join([chunk async for chunk in stream.aiter_bytes()])
+        response = await service.async_client().get(url,
+            **({'max_response_bytes': 4096} if mode == 'bounded' else {}), **kwargs)
+        return response.content
+    with pytest.raises(VerificationRequired):
+        await fetch(blocked)
+    assert service.state(blocked).blocked_scope == ('domain' if interstitial else 'url')
+    # Neither type of refusal should blindly retry the rejected resource.
+    with pytest.raises(VerificationRequired):
+        await fetch(blocked)
+    assert visited == [blocked]
+    if interstitial:
+        with pytest.raises(VerificationRequired):
+            await fetch(search)
+        assert visited == [blocked]
+    else:
+        assert await fetch(search) == b'Bleach'
+        # Opening a managed browser still pauses every request on this host,
+        # including operations with the internal challenge-verification flag.
+        service.pause_for_webview(blocked, 'reader')
+        before = list(visited)
+        with pytest.raises(VerificationRequired):
+            await fetch(search, verify_challenge=True)
+        assert visited == before
+        service.release_webview(blocked, 'reader')
+        assert await fetch(search) == b'Bleach'
+
+
+def test_inflight_file_refusal_does_not_downgrade_a_recorded_domain_challenge(transport):
+    service = transport(lambda *args: None)
+    challenge_url = 'https://source.example/catalogue/'
+    file_url = 'https://source.example/optional/episodes.js'
+    state = service.state(challenge_url)
+    for url, headers in [(challenge_url, {'cf-mitigated': 'challenge'}), (file_url, {})]:
+        response = httpx.Response(403, headers={'content-type': 'text/html', 'server': 'cloudflare', **headers},
+                                  text='Sorry, you have been blocked', request=httpx.Request('GET', url))
+        with pytest.raises(VerificationRequired):
+            service.classify(state, response, url)
+    assert state.blocked_url == challenge_url
+    assert state.blocked_scope == 'domain'
+    assert service.verification_required(state, 'https://source.example/another-page')
+
+
+def test_legacy_clearance_with_unknown_agent_is_removed_even_if_new_default_matches_browser(transport):
+    service = transport(lambda *args: None)
+    url = 'https://source.example'
+    service.default_user_agent = 'Native browser UA'
+    service.import_cookies(url, [{'name': 'cf_clearance', 'value': 'legacy'}, {'name': 'account', 'value': 'login'}])
+    service.adopt_browser_identity(url, 'Native browser UA')
+    assert [c.name for c in service.state(url).cookies] == ['account']
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('message,kind', [('Could not resolve host', 'dns'), ('Operation timed out', 'timeout'), ('SSL certificate problem', 'tls')])
+async def test_stream_opening_preserves_network_failure_category_without_considering_proxy(transport, monkeypatch, message, kind):
+    from curl_cffi.requests.exceptions import RequestException
+    def handler(*args): raise RequestException(message)
+    service = transport(handler)
+    monkeypatch.setattr(service, 'rotate_proxy', lambda *args, **kwargs: pytest.fail('A network error must not consider a proxy'))
+    with pytest.raises(SourceNetworkError) as caught:
+        async with service.async_client().stream('GET', 'https://source.example/video.mp4'):
+            pass
+    assert caught.value.kind == kind

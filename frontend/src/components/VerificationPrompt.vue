@@ -29,10 +29,6 @@
       >
         {{ tx('Je suis revenu, réessayer') }}
       </button>
-      <ProxyRotationButton
-        :domain="challenge.domain"
-        :retry="() => verification.retry(challenge.domain)"
-      />
       <template v-if="verification.job?.domain === challenge.domain">
         <button
           class="btn btn-primary"
@@ -115,7 +111,6 @@ import { computed, onMounted } from 'vue'
 import { useVerificationStore } from '@/stores/verification'
 import type { VerificationCapability } from '@/types/api'
 import type { SourceChallenge } from '@/types'
-import ProxyRotationButton from './ProxyRotationButton.vue'
 import { detectBrowser } from '@/utils/browser'
 const currentBrowser = detectBrowser(navigator.userAgent)
 const props = defineProps<{ challenges: SourceChallenge[] }>()

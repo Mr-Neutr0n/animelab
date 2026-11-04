@@ -188,6 +188,7 @@ def test_rotation_clears_old_cookies_clients_and_refuses_active_transfer(pool, t
     state = service.state('https://source.example/')
     state.cookies.set_cookie(service.cookie(state.domain, 'cf_clearance', 'old'))
     state.blocked_url = 'https://source.example/search'
+    state.last_error = 'geo_blocked'
     pool.entries = {'http://8.8.8.8:8080': entry()}
     with service.lease(state):
         with pytest.raises(ValueError, match='en cours'): service.rotate_proxy(state.domain)
@@ -210,7 +211,7 @@ def test_auto_challenge_retry_is_once_and_does_not_retry_post_or_rate_limit(pool
         return response(url, 403, headers={'cf-mitigated': 'challenge'})
     service = transport(handler)
     with pytest.raises(VerificationRequired): service.client().get('https://source.example/')
-    assert calls == [None, 'http://8.8.8.8:8080']
+    assert calls == [None]
     with pytest.raises(VerificationRequired): service.client().post('https://post.example/')
     assert calls[-1] is None
     service2 = transport(lambda s, m, u, k: response(u, 429, headers={'retry-after': '60'}))
@@ -222,7 +223,7 @@ def test_successful_auto_retry_and_manual_config_deferred_until_stream_finishes(
     pool.set_options({'automatic': True})
     pool.entries = {'http://8.8.8.8:8080': entry()}
     def handler(s, m, u, k):
-        return response(u, 200 if s.options['proxy'] else 403, headers={'cache-control': 'no-store'})
+        return response(u, 200 if s.options['proxy'] else 403, text='Not available in your country', headers={'cache-control': 'no-store'})
     service = transport(handler)
     assert service.client().get('https://source.example/').status_code == 200
     state = service.state('https://source.example/')
@@ -236,7 +237,7 @@ def test_successful_auto_retry_and_manual_config_deferred_until_stream_finishes(
     assert not state.pending_reset
 
 
-def test_previously_blocked_request_rotates_only_once_and_cannot_use_cached_results(pool, transport):
+def test_previously_challenged_request_never_rotates_or_uses_cached_results(pool, transport):
     pool.set_options({'automatic': True})
     pool.entries = {e['url']: e for e in [entry(), entry('http://1.1.1.1:8080')]}
     calls = []
@@ -248,7 +249,7 @@ def test_previously_blocked_request_rotates_only_once_and_cannot_use_cached_resu
     service.client().get(url)
     service.state(url).blocked_url = url
     with pytest.raises(VerificationRequired): service.client().get(url)
-    assert calls == [None, 'http://8.8.8.8:8080']
+    assert calls == [None]
 
 
 def test_retry_preserves_original_search_parameters_after_redirect(pool, transport):
@@ -259,7 +260,7 @@ def test_retry_preserves_original_search_parameters_after_redirect(pool, transpo
         if 'origin.example' in u:
             searches.append(k.get('params'))
             return response(u, 302, headers={'location': 'https://mirror.example/api?q=one'})
-        return response(u, 200 if s.options['proxy'] else 403, headers={'cache-control':'no-store'} if s.options['proxy'] else {'cf-mitigated':'challenge'})
+        return response(u, 200 if s.options['proxy'] else 403, text='Not available in your region', headers={'cache-control':'no-store'})
     service = transport(handler)
     assert service.client().get('https://origin.example/api', params={'q':'one'}).status_code == 200
     assert searches == [{'q':'one'}, {'q':'one'}]
@@ -272,7 +273,7 @@ def test_read_only_post_search_can_rotate_with_body_preserved(pool, transport):
     def handler(s, m, u, k):
         assert 'retry_safe' not in k
         bodies.append(k['data'])
-        return response(u, 200 if s.options['proxy'] else 403, headers={'cf-mitigated':'challenge'} if not s.options['proxy'] else {})
+        return response(u, 200 if s.options['proxy'] else 403, text='Not available in your country')
     service = transport(handler)
     assert service.client().post('https://source.example/search', data={'query':'one'}, retry_safe=True).status_code == 200
     assert bodies == [{'query':'one'}, {'query':'one'}]
@@ -285,10 +286,10 @@ async def test_media_rotation_happens_before_bytes_and_closes_old_stream(pool, t
     class Raw:
         def __init__(self, proxy, url):
             self.status_code, self.url = (200 if proxy else 403), url
-            self.headers = httpx.Headers({'content-type': 'video/mp4'} if proxy else {'cf-mitigated': 'challenge'})
+            self.headers = httpx.Headers({'content-type': 'video/mp4' if proxy else 'text/html'})
             self.closed = False
         def close(self): self.closed = True
-        def iter_content(self, chunk_size=None): yield b'video-bytes'
+        def iter_content(self, chunk_size=None): yield b'video-bytes' if self.status_code == 200 else b'Not available in your country'
     raw = []
     def handler(s, m, u, k):
         r = Raw(s.options['proxy'], u); raw.append(r); return r
@@ -305,7 +306,7 @@ async def test_media_rotation_happens_before_bytes_and_closes_old_stream(pool, t
 async def test_automatic_rotation_notifies_the_download_scheduler_on_its_event_loop(pool, transport):
     pool.set_options({'automatic': True})
     pool.entries = {'http://8.8.8.8:8080': entry()}
-    service = transport(lambda s, m, u, k: response(u, 200 if s.options['proxy'] else 403))
+    service = transport(lambda s, m, u, k: response(u, 200 if s.options['proxy'] else 403, text='Not available in your country'))
     loop = asyncio.get_running_loop()
     observed = loop.create_future()
     service.rotation_callback = lambda domain: loop.call_soon_threadsafe(observed.set_result, domain)
@@ -332,7 +333,7 @@ def test_pool_api_restricts_mutations_and_masks_import(pool, monkeypatch):
 def test_rotation_endpoint_known_domain_resumes_and_rejects_open_browser(pool, transport, monkeypatch):
     from animelab.routers import network
     service = transport(lambda s, m, u, k: response(u))
-    service.state('https://source.example/')
+    service.state('https://source.example/').last_error = 'geo_blocked'
     monkeypatch.setattr('animelab.services.source_http.source_http', service)
     monkeypatch.setattr(network.download_manager, 'resume_verified_domain', lambda domain: 2)
     pool.entries = {'http://8.8.8.8:8080': entry()}
@@ -351,6 +352,7 @@ def test_restart_does_not_restore_cookies_from_a_different_proxy(pool, transport
     state = service.state('https://source.example/')
     state.cookies.set_cookie(service.cookie(state.domain, 'cf_clearance', 'ip-bound', expires=int(time.time())+3600))
     pool.entries = {'http://8.8.8.8:8080': entry()}
+    state.last_error = 'geo_blocked'
     service.rotate_proxy(state.domain)
     state.cookies.set_cookie(service.cookie(state.domain, 'cf_clearance', 'proxy-bound', expires=int(time.time())+3600))
     service._save(state)
@@ -364,6 +366,7 @@ def test_public_proxy_keeps_tls_verification_even_if_manual_option_disabled(pool
     service = transport(lambda s, m, u, k: response(u))
     state = service.state('https://source.example/')
     pool.entries = {'http://8.8.8.8:8080': entry()}
+    state.last_error = 'geo_blocked'
     service.rotate_proxy(state.domain)
     service.client().get('https://source.example/')
     assert service.instances[0].options['verify'] is True
@@ -371,7 +374,7 @@ def test_public_proxy_keeps_tls_verification_even_if_manual_option_disabled(pool
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('service_class', ['ScrapingService', 'VoirAnimeScrapingService', 'AnimepaheService'])
-async def test_cached_native_feed_uses_automatic_rotation_when_already_blocked(pool, transport, monkeypatch, service_class):
+async def test_cached_native_feed_waits_for_browser_without_rotation_when_challenged(pool, transport, monkeypatch, service_class):
     import importlib
     name = {'ScrapingService': 'scraping_service', 'VoirAnimeScrapingService': 'voiranime_service', 'AnimepaheService': 'animepahe_service'}[service_class]
     module = importlib.import_module('animelab.services.' + name)
@@ -387,6 +390,73 @@ async def test_cached_native_feed_uses_automatic_rotation_when_already_blocked(p
     from unittest.mock import AsyncMock
     async def refresh(): native.latest_cache = ['fresh']
     native._safe_refresh_cache = AsyncMock(side_effect=refresh)
-    assert await native.get_latest_releases() == ['fresh']
-    assert service.state(native.base_url).proxy == 'http://8.8.8.8:8080'
-    native._safe_refresh_cache.assert_awaited_once()
+    with pytest.raises(VerificationRequired):
+        await native.get_latest_releases()
+    assert service.state(native.base_url).proxy is None
+    native._safe_refresh_cache.assert_not_awaited()
+
+
+@pytest.mark.parametrize('code,body,headers', [
+    (403, 'Forbidden', {}), (451, 'Unavailable for legal reasons', {}),
+    (403, 'Not available in your country', {'cf-mitigated': 'challenge'}),
+])
+def test_non_geographic_refusals_never_rotate_even_with_a_healthy_pool(pool, transport, code, body, headers):
+    pool.set_options({'automatic': True})
+    pool.entries = {'http://8.8.8.8:8080': entry()}
+    calls = []
+    def handler(s, m, u, k):
+        calls.append(s.options['proxy'])
+        return response(u, code, text=body, headers=headers)
+    service = transport(handler)
+    if headers:
+        with pytest.raises(VerificationRequired): service.client().get('https://source.example')
+    else:
+        assert service.client().get('https://source.example').status_code == code
+    assert calls == [None]
+    with pytest.raises(ValueError, match='géographiques'):
+        service.rotate_proxy('source.example')
+
+
+@pytest.mark.asyncio
+async def test_bounded_extension_requests_rotate_only_for_explicit_geo_restrictions(pool, transport):
+    pool.set_options({'automatic': True})
+    pool.entries = {'http://8.8.8.8:8080': entry()}
+    calls = []
+    def handler(s, m, u, k):
+        calls.append((s.options['proxy'], k.get('content')))
+        result = response(u, 200 if s.options['proxy'] else 403, text='Not available in your country')
+        result.iter_content = lambda: iter([result.content])
+        return result
+    service = transport(handler)
+    result = await service.async_client().post('https://source.example/search', content=b'query', retry_safe=True, max_response_bytes=1000)
+    assert result.status_code == 200
+    assert calls == [(None, b'query'), ('http://8.8.8.8:8080', b'query')]
+
+
+def test_rotation_endpoint_never_refreshes_public_pool_for_a_captcha(pool, transport, monkeypatch):
+    from animelab.routers import network
+    from unittest.mock import AsyncMock
+    service = transport(lambda s, m, u, k: response(u))
+    service.state('https://source.example').last_error = 'challenge'
+    monkeypatch.setattr('animelab.services.source_http.source_http', service)
+    refresh = AsyncMock()
+    monkeypatch.setattr(pool, 'refresh', refresh)
+    app = FastAPI(); app.include_router(network.router)
+    with TestClient(app, client=('127.0.0.1', 123)) as local:
+        result = local.post('/api/network/proxy-pool/rotate', json={'domain': 'source.example'})
+    assert result.status_code == 409
+    refresh.assert_not_awaited()
+
+
+@pytest.mark.parametrize('body', [
+    '<h1>Error <span>1009</span></h1>',
+    '<h1>Error code: 1009</h1>',
+    '<div class="cf-error-details">You have been blocked. The owner has banned the country or region your IP address is in.</div>',
+])
+def test_cloudflare_country_refusal_is_geo_even_with_html_markup(pool, transport, body):
+    service = transport(lambda s, m, u, k: response(u, 403, text=body,
+        headers={'server': 'cloudflare', 'content-type': 'text/html'}))
+    result = service.client().get('https://source.example')
+    assert result.extensions['animelab_geo_blocked'] is True
+    state = service.state('https://source.example')
+    assert state.last_error == 'geo_blocked' and not state.blocked_url

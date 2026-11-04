@@ -8,6 +8,7 @@ import copy
 import hashlib
 import json
 import os
+import re
 from animelab.environment import getenv
 import threading
 import time
@@ -50,6 +51,13 @@ class SourceNetworkError(httpx.ConnectError):
         super().__init__(message, request=httpx.Request("GET", url))
 
 
+def network_error_kind(error):
+    message = str(error).lower()
+    return ('tls' if any(word in message for word in ('certificate', 'ssl', 'tls')) else
+            'dns' if 'resolve' in message else
+            'timeout' if 'timed out' in message or 'timeout' in message else 'network')
+
+
 class RateLimited(httpx.HTTPStatusError):
     def __init__(self, response, delay):
         self.retry_after = delay
@@ -88,10 +96,12 @@ class DomainSession:
     next_request: float = 0.0
     cooldown: float = 0.0
     blocked_url: str | None = None
+    blocked_scope: str = 'domain'
     last_error: str | None = None
     generation: int = 0
     pending_reset: bool = False
     verification_owner: str | None = None
+    user_agent: str | None = None
     last_used: float = field(default_factory=time.monotonic)
 
 
@@ -112,6 +122,7 @@ class SourceHTTPService:
         self.executor = ThreadPoolExecutor(max_workers=16, thread_name_prefix="source-http")
         self.closed = False
         self.rotation_callback = None
+        self.default_user_agent = USER_AGENT
 
     def start(self):
         if self.closed:
@@ -128,6 +139,8 @@ class SourceHTTPService:
                 path = self.storage / (hashlib.sha256(domain.encode()).hexdigest() + ".cookies")
                 jar = MozillaCookieJar(str(path))
                 proxy = proxy_service.get_random_proxy()
+                route = None
+                fingerprint = hashlib.sha256((proxy or "direct").encode()).hexdigest()
                 try:
                     jar.load(ignore_discard=False, ignore_expires=False)
                     fingerprint = hashlib.sha256((proxy or "direct").encode()).hexdigest()
@@ -142,6 +155,13 @@ class SourceHTTPService:
                     pass
                 for cookie in jar: remember_secret(cookie.value)
                 self._domains[domain] = DomainSession(domain, proxy, jar)
+                try:
+                    identity = next((line.removeprefix('# AnimeLab user agent: ') for line in path.read_text().splitlines()
+                                     if line.startswith('# AnimeLab user agent: ')), None)
+                    if identity and route == fingerprint:
+                        self._domains[domain].user_agent = self.valid_user_agent(json.loads(identity))
+                except (OSError, ValueError):
+                    pass
             return self._domains[domain]
 
     def _save(self, state):
@@ -158,6 +178,8 @@ class SourceHTTPService:
             # A comment in the cookie file makes route identity and cookies one atomic snapshot.
             with open(temp, "a") as handle:
                 handle.write("# Animan route: " + hashlib.sha256((state.proxy or "direct").encode()).hexdigest() + "\n")
+                if state.user_agent:
+                    handle.write('# AnimeLab user agent: ' + json.dumps(state.user_agent) + '\n')
             os.replace(temp, path)
             os.chmod(path, 0o600)
         except OSError:
@@ -182,7 +204,7 @@ class SourceHTTPService:
             client = state.clients.pop() if state.clients else None
         try:
             if client is None:
-                client = self.session_factory(impersonate=PROFILE, use_thread_local_curl=False,
+                client = self.session_factory(impersonate=PROFILE, default_headers=False, use_thread_local_curl=False,
                                               trust_env=False, verify=True if state.public_proxy else settings.SSL_VERIFY,
                                               proxy=state.proxy)
             with state.condition:
@@ -257,6 +279,7 @@ class SourceHTTPService:
         state.proxy = proxy
         state.public_proxy = public
         state.cookies.clear()
+        state.user_agent = None
         state.blocked_url = None
         state.last_error = None
         state.generation += 1
@@ -289,6 +312,9 @@ class SourceHTTPService:
             if state.leased or state.pending_reset:
                 if automatic: return False
                 raise ValueError("Une requête ou un téléchargement est en cours pour ce domaine ; réessayez à sa fin")
+            if state.last_error != 'geo_blocked':
+                if automatic: return False
+                raise ValueError('Le changement de proxy est réservé aux blocages géographiques identifiés.')
             proxy = proxy_pool.choose(state.domain, state.proxy, automatic=automatic)
             if not proxy:
                 if automatic: return False
@@ -305,19 +331,12 @@ class SourceHTTPService:
     def _request_with_rotation(self, method, url, headers, timeout, follow, verifying, kwargs, retry_safe=False):
         retry_allowed = method in ("GET", "HEAD") or retry_safe
         for attempt in range(2):
-            try:
-                response = self._request(method, url, headers, timeout, follow, verifying, dict(kwargs))
-                if response.status_code not in (403, 451) or attempt or not retry_allowed:
-                    return response
-                domain = urlparse(str(response.url)).hostname or ""
-                if not self.rotate_proxy(domain, automatic=True):
-                    return response
-            except (VerificationRequired, SourceNetworkError) as exc:
-                if attempt or not retry_allowed or (isinstance(exc, SourceNetworkError) and exc.kind == "tls"):
-                    raise
-                domain = exc.domain if isinstance(exc, VerificationRequired) else exc.request.url.host
-                if not self.rotate_proxy(domain, automatic=True):
-                    raise
+            response = self._request(method, url, headers, timeout, follow, verifying, dict(kwargs))
+            if not response.extensions.get('animelab_geo_blocked') or attempt or not retry_allowed:
+                return response
+            domain = urlparse(str(response.url)).hostname or ''
+            if not self.rotate_proxy(domain, automatic=True):
+                return response
             # Retry only before a response body is exposed to callers.
             kwargs = dict(kwargs)
 
@@ -338,6 +357,11 @@ class SourceHTTPService:
         html = "text/html" in response.headers.get("content-type", "").lower()
         body = response.text[:65536].lower() if html and not streaming else ""
         challenge = response.headers.get("cf-mitigated", "").lower() == "challenge"
+        # A hard WAF refusal may affect only one file. Keep offering a browser,
+        # but do not let a failed optional episodes.js poison the whole source.
+        access_refusal = not streaming and html and (
+            (response.status_code in (403, 503) and response.headers.get('server', '').lower() == 'cloudflare')
+            or ('cf-error-details' in body and 'you have been blocked' in body))
         # Do not treat every 403/503 or every Cloudflare-served response as a challenge.
         challenge = challenge or (html and ("/cdn-cgi/challenge-platform/" in body)
                                   and ("cf-chl-" in body or "just a moment" in body))
@@ -345,19 +369,73 @@ class SourceHTTPService:
         # A CAPTCHA widget on a normal catalogue is not a verification page.
         challenge = challenge or (html and (
             "/.well-known/ddos-guard/js-challenge/" in body
-            or ("cf-error-details" in body and "you have been blocked" in body)
             or ("checking your browser" in body and "ddos-guard" in body)
             or (any(marker in body for marker in ("g-recaptcha", "h-captcha", "captcha-delivery.com"))
                 and (response.status_code in (403, 503)
                      or any(title in body for title in ("<title>verify", "<title>security check", "<title>are you human"))))))
-        if challenge:
+        if not streaming and not response.headers.get('cf-mitigated') and response.status_code in (403, 451):
+            text = ' '.join(re.sub(r'<[^>]+>', ' ', response.text[:65536].lower()).split())
+            if any(marker in text for marker in ('not available in your country', 'not available in your region',
+                    'not available in your location', 'geographic restriction', 'geographical restriction',
+                    'geo-blocked', 'geoblocked', 'indisponible dans votre pays', 'indisponible dans votre région',
+                    'banned your country', 'banned the country or region')) or re.search(r'\berror\s*(?:code\s*)?:?\s*1009\b', text):
+                response.extensions['animelab_geo_blocked'] = True
+                with state.condition:
+                    state.last_error = 'geo_blocked'
+                return
+        if challenge or access_refusal:
             with state.condition:
-                state.blocked_url = str(url)
+                # A response already in flight must not downgrade a challenge
+                # recorded by another request to a file-only refusal.
+                if challenge or not state.blocked_url or state.blocked_scope != 'domain':
+                    state.blocked_url = str(url)
+                    state.blocked_scope = 'domain' if challenge else 'url'
                 state.last_error = "challenge"
             raise VerificationRequired(url)
+        if not streaming:
+            with state.condition:
+                state.last_error = None if response.status_code < 400 else f'http_{response.status_code}'
+
+    @staticmethod
+    def verification_required(state, url, verifying=False):
+        return bool(state.verification_owner or (state.blocked_url and not verifying and (
+            state.blocked_scope == 'domain'
+            or state.blocked_url.split('#', 1)[0] == str(url).split('#', 1)[0])))
+
+    @staticmethod
+    def valid_user_agent(value):
+        if not isinstance(value, str) or not value.strip() or len(value) > 2048 or any(ord(c) < 32 or ord(c) > 126 for c in value):
+            raise ValueError('Agent utilisateur du navigateur invalide')
+        return value
+
+    def adopt_browser_identity(self, url, user_agent, expected_route=None):
+        state = self.state(url)
+        user_agent = self.valid_user_agent(user_agent)
+        with state.condition:
+            if expected_route is not None and (state.proxy, state.generation) != expected_route:
+                from animelab.api_errors import APIProblem
+                raise APIProblem('verification_route_changed', status=409, category='protection', action='verify')
+            if state.user_agent != user_agent:
+                # Clearance belongs to its browser identity; keep unrelated login cookies.
+                for cookie in list(state.cookies):
+                    if cookie.name in ('cf_clearance', '__cf_bm'):
+                        state.cookies.clear(cookie.domain, cookie.path, cookie.name)
+                state.user_agent = user_agent
+                self._save(state)
+
+    def identity_headers(self, state, headers):
+        result = dict(httpx.Headers(headers))
+        if state.user_agent:
+            result['user-agent'] = state.user_agent
+            for key in list(result):
+                if key.startswith('sec-ch-ua'):
+                    result.pop(key)
+        else:
+            result.setdefault('user-agent', self.default_user_agent)
+        return result
 
     def _key(self, state, method, url, headers, kwargs):
-        payload = json.dumps([state.domain, state.generation, method, str(url), sorted(headers.items()),
+        payload = json.dumps([state.domain, state.generation, state.user_agent, method, str(url), sorted(headers.items()),
                               kwargs.get("params"), [(c.domain, c.path, c.name, c.value) for c in state.cookies
                                                      if not c.is_expired()]], sort_keys=True, default=str)
         return hashlib.sha256(payload.encode()).hexdigest()
@@ -375,7 +453,6 @@ class SourceHTTPService:
         if state.verification_owner:
             raise VerificationRequired(state.blocked_url or str(url))
         headers = dict(httpx.Headers(headers or {}))
-        headers["user-agent"] = USER_AGENT
         kwargs.pop("impersonate", None)
         kwargs.pop("verify", None)
         kwargs.pop("proxy", None)
@@ -436,13 +513,13 @@ class SourceHTTPService:
             if not is_safe_url(url):
                 raise ValueError("URL source non autorisée")
             state = self.state(url)
-            if state.verification_owner or (state.blocked_url and not verifying):
+            if self.verification_required(state, url, verifying):
                 raise VerificationRequired(state.blocked_url)
             for attempt in range(3):
                 self.pace(state)
                 try:
                     with self.lease(state) as client:
-                        raw = client.request(method, url, headers=headers, timeout=self.timeout(timeout),
+                        raw = client.request(method, url, headers=self.identity_headers(state, headers), timeout=self.timeout(timeout),
                                              allow_redirects=False, **kwargs)
                         response = httpx.Response(raw.status_code, headers=response_headers(raw),
                                                   content=raw.content, request=httpx.Request(method, raw.url))
@@ -450,15 +527,14 @@ class SourceHTTPService:
                 except Exception as exc:
                     if isinstance(exc, (VerificationRequired, ValueError)):
                         raise
-                    message = str(exc).lower()
-                    kind = "tls" if any(x in message for x in ("certificate", "ssl", "tls")) else (
-                        "dns" if "resolve" in message else ("timeout" if "timed out" in message or "timeout" in message else "network"))
+                    kind = network_error_kind(exc)
                     state.last_error = kind
                     if kind == "tls" or attempt == 2 or method not in ("GET", "HEAD"):
                         raise SourceNetworkError(f"Erreur réseau ({kind}) pour {state.domain}", kind, url) from exc
                     time.sleep(retry_delay(None, attempt))
                     continue
-                state.last_error = None if response.status_code < 400 else f"http_{response.status_code}"
+                state.last_error = ('geo_blocked' if response.extensions.get('animelab_geo_blocked') else
+                                    None if response.status_code < 400 else f"http_{response.status_code}")
                 if response.status_code == 429 or response.status_code in (502, 503, 504):
                     delay = retry_delay(response.headers.get("retry-after"), attempt)
                     with state.condition:
@@ -604,22 +680,27 @@ class AsyncSourceClient(SourceClient):
         if maximum is not None:
             if type(maximum) is not int or maximum < 1:
                 raise ValueError('Invalid response byte budget')
-            chunks, total = [], 0
             headers = kwargs.pop('headers', {})
-            async with self.stream(method, url, headers=headers, _allow_html=True, **kwargs) as response:
-                async for chunk in response.aiter_bytes():
-                    total += len(chunk)
-                    if total > maximum:
-                        raise ValueError('La réponse dépasse la taille autorisée.')
-                    chunks.append(chunk)
-                # curl has already decoded HTTP content encodings. Do not ask
-                # HTTPX to decompress the resulting bytes a second time.
-                pairs = response.headers.multi_items() if hasattr(response.headers,'multi_items') else response.headers.items()
-                safe_headers = [(key,value) for key,value in pairs if key.lower() not in ('content-encoding','content-length')]
-                buffered = httpx.Response(response.status_code,headers=safe_headers,
-                                          content=b''.join(chunks),request=response.request)
-                self.service.classify(self.service.state(str(buffered.url)),buffered,str(buffered.url))
-                return buffered
+            retry_safe = kwargs.pop('retry_safe', False)
+            for attempt in range(2):
+                chunks, total = [], 0
+                async with self.stream(method, url, headers=headers, _allow_html=True, **kwargs) as response:
+                    async for chunk in response.aiter_bytes():
+                        total += len(chunk)
+                        if total > maximum:
+                            raise ValueError('La réponse dépasse la taille autorisée.')
+                        chunks.append(chunk)
+                    # curl has already decoded HTTP content encodings. Do not ask
+                    # HTTPX to decompress the resulting bytes a second time.
+                    pairs = response.headers.multi_items() if hasattr(response.headers,'multi_items') else response.headers.items()
+                    safe_headers = [(key,value) for key,value in pairs if key.lower() not in ('content-encoding','content-length')]
+                    buffered = httpx.Response(response.status_code,headers=safe_headers,
+                                              content=b''.join(chunks),request=response.request)
+                    self.service.classify(self.service.state(str(buffered.url)),buffered,str(buffered.url))
+                if (not buffered.extensions.get('animelab_geo_blocked') or attempt or
+                        not (method.upper() in ('GET', 'HEAD') or retry_safe) or
+                        not await asyncio.to_thread(self.service.rotate_proxy, buffered.url.host, automatic=True)):
+                    return buffered
         call = partial(super().request, method, url, **kwargs)
         return await asyncio.get_running_loop().run_in_executor(self.service.executor, call)
 
@@ -651,7 +732,6 @@ class SourceStream:
     def __init__(self, client, method, url, headers, kwargs=None):
         self.client, self.method, self.url = client, method, str(url)
         self.headers = dict(httpx.Headers(headers))
-        self.headers["user-agent"] = USER_AGENT
         self.kwargs = kwargs or {}
         self.lease = None
         self.raw = None
@@ -660,14 +740,12 @@ class SourceStream:
         for attempt in range(2):
             try:
                 return self._open()
-            except (VerificationRequired, SourceNetworkError, httpx.HTTPStatusError) as exc:
+            except httpx.HTTPStatusError as exc:
                 if attempt or self.method.upper() not in ("GET", "HEAD"):
                     raise
-                if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code not in (403, 451):
+                if not exc.response.extensions.get('animelab_geo_blocked'):
                     raise
-                if isinstance(exc, SourceNetworkError) and exc.kind == "tls":
-                    raise
-                domain = exc.domain if isinstance(exc, VerificationRequired) else exc.request.url.host
+                domain = exc.request.url.host
                 if not self.client.service.rotate_proxy(domain, automatic=True):
                     raise
 
@@ -685,13 +763,13 @@ class SourceStream:
             if not is_safe_url(url):
                 raise ValueError("URL source non autorisée")
             state = service.state(url)
-            if state.verification_owner or (state.blocked_url and not verifying):
+            if service.verification_required(state, url, verifying):
                 raise VerificationRequired(state.blocked_url)
             service.pace(state)
             self.lease = service.lease(state)
             transport = self.lease.__enter__()
             try:
-                self.raw = transport.request(method, url, headers=self.headers, stream=True,
+                self.raw = transport.request(method, url, headers=service.identity_headers(state, self.headers), stream=True,
                                              allow_redirects=False, timeout=service.timeout(self.client.timeout), **kwargs)
                 response = httpx.Response(self.raw.status_code, headers=response_headers(self.raw),
                                           request=httpx.Request(method, self.raw.url))
@@ -711,7 +789,8 @@ class SourceStream:
                         url = target
                         continue
                 # HTML is never a media stream; inspect its small body for challenge markers.
-                if not allow_html and "text/html" in response.headers.get("content-type", "").lower():
+                if not allow_html and response.status_code != 429 and (
+                        "text/html" in response.headers.get("content-type", "").lower() or response.status_code in (403, 451)):
                     body = bytearray()
                     for chunk in self.raw.iter_content():
                         body.extend(chunk)
@@ -731,8 +810,7 @@ class SourceStream:
                 return self.response
             except CurlRequestError as exc:
                 self.close()
-                message = str(exc).lower()
-                kind = "tls" if any(x in message for x in ("ssl", "tls", "certificate")) else "network"
+                kind = network_error_kind(exc)
                 state.last_error = kind
                 raise SourceNetworkError(f"Erreur réseau ({kind}) pour {state.domain}", kind, url) from exc
             except BaseException:
@@ -764,15 +842,6 @@ class SourceStream:
 
     async def __aexit__(self, *args):
         await asyncio.to_thread(self.close)
-        error = args[1] if len(args) > 1 else None
-        if (self.method.upper() in ("GET", "HEAD") and isinstance(error, SourceNetworkError)
-                and error.kind != "tls"):
-            # Bytes may already have been written. Release the old connection first,
-            # then let the download manager resume from its persisted offset/segment.
-            await asyncio.get_running_loop().run_in_executor(
-                self.client.service.executor,
-                partial(self.client.service.rotate_proxy, error.request.url.host, automatic=True),
-            )
 
 
 class SourceStreamResponse:
@@ -791,8 +860,7 @@ class SourceStreamResponse:
             try:
                 chunk = await asyncio.to_thread(next, iterator, sentinel)
             except CurlRequestError as exc:
-                message = str(exc).lower()
-                kind = "tls" if any(x in message for x in ("ssl", "tls", "certificate")) else "network"
+                kind = network_error_kind(exc)
                 raise SourceNetworkError(f"Lecture du média interrompue ({kind}) pour {self.url.host}",
                                          kind, str(self.url)) from exc
             if chunk is sentinel:

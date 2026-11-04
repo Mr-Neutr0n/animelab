@@ -111,6 +111,7 @@ export interface VerificationCapability {
     | null
 }
 export interface NetworkSession {
+  lastError?: string | null
   domain: string
   verificationRequired: boolean
   usesProxy: boolean

@@ -115,8 +115,7 @@ class BrowserVerificationService:
             job['engineCookies'], job['browserCookies'] = initial, initial
             opening_cancelled=threading.Event()
             try:
-                if mode=='webview':
-                    await asyncio.to_thread(self.transport.pause_for_webview,url,job['id'],cancelled=opening_cancelled)
+                await asyncio.to_thread(self.transport.pause_for_webview,url,job['id'],cancelled=opening_cancelled)
                 await mechanism.open(self, job, state, browser)
             except BaseException:
                 opening_cancelled.set()
@@ -126,7 +125,9 @@ class BrowserVerificationService:
                 await self._abort_open(job)
                 from animelab.api_errors import APIProblem
                 raise APIProblem("verification_route_changed", status=409, category="protection", action="verify")
-            job["needsProbe"] = mode!='webview'
+            # Browser identity adoption can invalidate old clearance cookies.
+            initial = snapshot(self.transport, url, visible_only=mode == 'webview')
+            job['engineCookies'], job['browserCookies'] = initial, initial
             self.jobs[job["id"]] = job
             return {"id": job["id"], "domain": domain, "mode": mode}
 
@@ -195,7 +196,6 @@ class BrowserVerificationService:
             from animelab.api_errors import APIProblem
             raise APIProblem('verification_route_changed', status=409, category='protection', action='verify')
         job['browserCookies'], job['engineCookies'] = engine, engine
-        if changed: job['needsProbe'] = True
         return changed
 
     async def complete(self, job_id):
@@ -220,45 +220,23 @@ class BrowserVerificationService:
         check_route()
         await self.synchronize(job)
         check_route()
-        if job['mode']=='webview':
-            # Cookie transfer is not an access verdict. Stop browser networking
-            # before resuming an actual source operation; never add an HTTP probe.
-            await self.mechanisms['webview'].close(job)
-            job['windowClosed']=True
-            check_route()
-        else:
-            await self._probe(job)
+        # Stop real-browser networking before resuming an actual source
+        # operation. Cookie transfer alone is never an access verdict.
+        await self.mechanisms[job['mode']].close(job)
+        job['windowClosed']=True
+        check_route()
         with state.condition:
             check_route()
             state.blocked_url = None
             state.last_error = None
             state.generation += 1
             self.transport.release_webview(job['url'],job['id'])
-        result = {"success": True, "domain": job["domain"]}
-        if job['mode']=='webview':
-            result.update(sessionImported=True,accessVerified=False)
+        result = {"success": True, "domain": job["domain"], "sessionImported": True, "accessVerified": False}
         if self.verified_callback:
             result['resumed'] = self.verified_callback(job['domain'])
         self.completed[job_id] = {'created': time.monotonic(), 'result': result}
         await self.cancel(job_id)
         return result
-
-    async def _probe(self, job):
-        # Chromium mode retains its existing explicit upstream validation.
-        media = any(x in urlparse(job["url"]).path.lower() for x in (".mp4", ".m3u8", ".ts", ".m4s"))
-        method = "HEAD" if media else "GET"
-        try:
-            response = await asyncio.to_thread(self.transport.request, method, job["url"],
-                                               bypass_cache=True, verify_challenge=True)
-            if media and response.status_code in (403, 405, 501):
-                async with self.transport.async_client().stream("GET", job["url"], headers={"Range": "bytes=0-1023"}, verify_challenge=True) as upstream:
-                    upstream.raise_for_status()
-            else:
-                response.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            raise ValueError(f"La source refuse encore l’accès (HTTP {exc.response.status_code}) ; la vérification reste en attente") from exc
-        except httpx.RequestError as exc:
-            raise ValueError("La source est injoignable ; réessayez la validation lorsque la connexion sera rétablie") from exc
 
     async def cancel(self, job_id):
         job = self.jobs.get(job_id)
@@ -287,15 +265,13 @@ class BrowserVerificationService:
                         if job.get('openingFailed'):
                             await self.cancel(job_id)
                             continue
-                        changed = await self.synchronize(job)
-                        if job['mode']=='webview':
-                            window=job.get('window')
-                            closed=getattr(window,'is_closed',None)
-                            if closed is not None and await asyncio.to_thread(closed):
-                                await self._complete(job_id)
-                            continue  # No emulated upstream probe while a WebView owns the session.
-                        if changed or job.pop('needsProbe', False):
-                            job['needsProbe'] = False
+                        await self.synchronize(job)
+                        window=job.get('window')
+                        closed=getattr(window,'is_closed',None)
+                        process=job.get('process')
+                        if ((closed is not None and await asyncio.to_thread(closed)) or
+                                (job['mode'] == 'webview' and WebViewVerification.desktop_closed(job)) or
+                                (process is not None and process.poll() is not None)):
                             await self._complete(job_id)
                         job['error'] = ''
                     except VerificationRequired:

@@ -119,6 +119,11 @@ class EmbeddedEngineTest {
             while (!EngineHost.ready && EngineHost.error == null && System.currentTimeMillis() < deadline) Thread.sleep(250)
             assertNull(EngineHost.error)
             assertTrue("Embedded Python did not become ready", EngineHost.ready)
+            val browserUserAgent = VerificationBridge.userAgent()
+            assertTrue(browserUserAgent.contains("Mozilla/"))
+            val networkIdentity = JSONObject(Python.getInstance().getModule("android_runtime")
+                .callAttr("extension_http", "{\"action\":\"user_agent\"}").toString())
+            assertEquals(browserUserAgent, networkIdentity.getString("userAgent"))
             var page: Pair<Int, String>? = null
             repeat(30) {
                 if (page == null) try { page = request("/spa/") } catch (_: Exception) { Thread.sleep(250) }

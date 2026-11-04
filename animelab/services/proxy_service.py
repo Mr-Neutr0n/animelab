@@ -114,7 +114,9 @@ class ProxyService:
     def get_user_agent(self) -> str:
         ua = self.selected_user_agent
         if not ua or ua == "Random (Rotator)":
-            return random.choice(USER_AGENTS)
+            # Legacy preference: keep a stable identity, including native Android.
+            from animelab.services.source_http import source_http
+            return source_http.default_user_agent
         if ua == "Chrome":
             return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
         if ua == "Firefox":

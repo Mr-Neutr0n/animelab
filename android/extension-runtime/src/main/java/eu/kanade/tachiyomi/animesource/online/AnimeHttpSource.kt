@@ -81,7 +81,12 @@ abstract class AnimeHttpSource : AnimeCatalogueSource {
     /**
      * Default network client for doing requests.
      */
-    open val client: OkHttpClient get() = network.client
+    private val sourceClient: OkHttpClient by lazy {
+        network.client.newBuilder().addInterceptor(
+            eu.kanade.tachiyomi.network.SourceScriptRefererInterceptor { baseUrl },
+        ).build()
+    }
+    open val client: OkHttpClient get() = sourceClient
 
     /**
      * Generates a unique ID for the source based on the provided [name], [lang] and

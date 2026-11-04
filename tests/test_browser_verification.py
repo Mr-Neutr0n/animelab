@@ -19,7 +19,7 @@ def verification(tmp_path, monkeypatch):
     state.blocked_url = 'https://source.example/episode'
     service.jobs['job'] = {'id':'job','domain':'source.example','url':state.blocked_url,
                            'created':time.monotonic(),'mode':'browser','process':None,'window':None}
-    service._cdp = AsyncMock(return_value={'cookies':[
+    service._cdp = AsyncMock(return_value={'userAgent': 'Real browser UA', 'cookies':[
         {'domain':'source.example','name':'cf_clearance','value':'private','expires':time.time()+120},
         {'domain':'other.example','name':'account','value':'unrelated'},
     ]})
@@ -28,7 +28,7 @@ def verification(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_completion_imports_only_domain_cookies_and_checks_response(verification, monkeypatch):
+async def test_completion_imports_scoped_cookies_without_an_emulated_probe(verification, monkeypatch):
     service, transport, state = verification
     calls=[]
     def request(method,url,**kwargs):
@@ -36,29 +36,27 @@ async def test_completion_imports_only_domain_cookies_and_checks_response(verifi
         return httpx.Response(200,request=httpx.Request(method,url))
     monkeypatch.setattr(transport,'request',request)
     result=await service.complete('job')
-    assert result=={'success':True,'domain':'source.example'}
+    assert result=={'success':True,'domain':'source.example','sessionImported':True,'accessVerified':False}
     assert state.blocked_url is None
     assert [cookie.name for cookie in state.cookies]==['cf_clearance']
-    assert calls[0][2]['verify_challenge'] and calls[0][2]['bypass_cache']
+    assert calls == []
     assert 'job' not in service.jobs
 
 
 @pytest.mark.asyncio
-async def test_failed_verification_keeps_downloads_blocked(verification,monkeypatch):
+async def test_cookie_transfer_failure_keeps_downloads_blocked(verification):
     service, transport, state = verification
-    def request(*args,**kwargs): raise VerificationRequired('https://source.example/episode')
-    monkeypatch.setattr(transport,'request',request)
-    with pytest.raises(VerificationRequired): await service.complete('job')
+    service._cdp.side_effect = ValueError('Cookie exchange failed')
+    with pytest.raises(ValueError, match='Cookie exchange failed'):
+        await service.complete('job')
     assert state.blocked_url and 'job' in service.jobs
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('status', [403, 500])
-async def test_ordinary_refusal_keeps_verification_pending(verification, monkeypatch, status):
+async def test_shutdown_failure_does_not_resume_the_source(verification, monkeypatch):
     service, transport, state = verification
-    monkeypatch.setattr(transport, 'request', lambda method, url, **kwargs:
-                        httpx.Response(status, request=httpx.Request(method, url)))
-    with pytest.raises(ValueError, match=f'HTTP {status}'):
+    monkeypatch.setattr(service.mechanisms['browser'], 'close', AsyncMock(side_effect=OSError('shutdown failed')))
+    with pytest.raises(OSError, match='shutdown failed'):
         await service.complete('job')
     assert state.blocked_url and 'job' in service.jobs
 
@@ -128,9 +126,17 @@ async def test_installed_chrome_cookie_exchange_with_local_server(tmp_path, monk
     browser = next(iter(BrowserVerificationService().installed_browsers()), None)
     if not browser:
         pytest.skip('No installed Chrome-family browser')
+    observed = []
+    browser_ua = []
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
-            verified=self.path=='/verify' or 'access=local-test' in self.headers.get('Cookie','')
+            # Chrome can fetch /favicon.ico after its initial page has loaded.
+            # Measure the blocked source operation, independently of those real
+            # browser requests; the unit probe test covers every transport URL.
+            if self.path == '/episode':
+                observed.append((self.path, self.headers.get('User-Agent')))
+            if self.path == '/verify': browser_ua.append(self.headers.get('User-Agent'))
+            verified=self.path=='/verify' or ('access=local-test' in self.headers.get('Cookie','') and self.headers.get('User-Agent') in browser_ua)
             self.send_response(200 if verified else 403)
             if self.path=='/verify': self.send_header('Set-Cookie','access=local-test; Max-Age=120; Path=/')
             if not verified: self.send_header('cf-mitigated','challenge')
@@ -176,7 +182,16 @@ async def test_installed_chrome_cookie_exchange_with_local_server(tmp_path, monk
             if any(c['name']=='access' for c in cookies): break
             await asyncio.sleep(0.1)
         assert any(c['name']=='access' for c in cookies)
+        identity = await service._cdp(service.jobs['real'], 'Browser.getVersion')
+        transport.adopt_browser_identity(base, identity['userAgent'])
+        transport.pause_for_webview(base, 'real')
+        before = len(observed)
+        with pytest.raises(VerificationRequired):
+            await transport.async_client().get(base+'/episode', verify_challenge=True)
+        assert len(observed) == before
         result=await service.complete('real')
+        assert len(observed) == before and process.poll() is not None
+        assert transport.state(base).user_agent in browser_ua
         assert result['success'] and transport.state(base).blocked_url is None
         assert (await transport.async_client().get(base+'/episode')).status_code==200
     finally:

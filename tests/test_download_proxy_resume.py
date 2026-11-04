@@ -27,7 +27,7 @@ def task_at(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_midstream_failure_rotates_after_release_and_resumes_exact_bytes(manager, tmp_path, pool, transport, monkeypatch):
+async def test_midstream_failure_preserves_route_and_resumes_exact_bytes(manager, tmp_path, pool, transport, monkeypatch):
     pool.set_options({'automatic': True})
     pool.entries = {'http://8.8.8.8:8080': entry()}
     data = bytes(range(256)) * 1000
@@ -59,10 +59,10 @@ async def test_midstream_failure_rotates_after_release_and_resumes_exact_bytes(m
     with pytest.raises(SourceNetworkError):
         await manager._download_single_file(episode, episode.fileUrl)
     assert streams[0].closed and service.state(episode.fileUrl).leased == 0
-    assert service.state(episode.fileUrl).proxy == 'http://8.8.8.8:8080'
+    assert service.state(episode.fileUrl).proxy is None
     assert Path(episode.savePath + '.part').read_bytes() == data[:100000]
     await manager._download_single_file(episode, episode.fileUrl)
-    assert calls[1][0] == 'http://8.8.8.8:8080'
+    assert calls[1][0] is None
     assert calls[1][1]['range'] == f'bytes={100000-RESUME_OVERLAP}-'
     assert calls[1][1]['if-range'] == '"episode-v1"'
     assert Path(episode.savePath).read_bytes() == data
@@ -118,7 +118,7 @@ async def test_changed_representation_restarts_without_mixing_bytes(manager, tmp
 
 
 @pytest.mark.asyncio
-async def test_hls_rotation_keeps_completed_segments_and_retries_only_interrupted_segment(manager, tmp_path, pool, transport, monkeypatch):
+async def test_hls_connection_failure_preserves_route_and_completed_segments(manager, tmp_path, pool, transport, monkeypatch):
     pool.set_options({'automatic':True})
     pool.entries = {'http://8.8.8.8:8080':entry()}
     calls = []
@@ -145,7 +145,7 @@ async def test_hls_rotation_keeps_completed_segments_and_retries_only_interrupte
     episode = task_at(tmp_path)
     await manager._download_hls_segments_native(episode, 'https://cdn.example/main.m3u8')
     assert [url.rsplit('/',1)[1] for url, _ in calls] == ['0.ts', '1.ts', '1.ts']
-    assert calls[-1][1] == 'http://8.8.8.8:8080'
+    assert calls[-1][1] is None
     assert Path(episode.savePath).read_bytes() == b'firstother'
 
 

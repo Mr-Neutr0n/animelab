@@ -1,6 +1,43 @@
 import { test, expect } from '@playwright/test'
 import { mockApp } from './fixtures.mjs'
 
+for (const lastError of ['network', 'geo_blocked']) {
+  test(`proxy rotation requires explicit geography: ${lastError}`, async ({ page }) => {
+    await mockApp(page)
+    await page.route('**/api/sources/aniyomi-long/catalogue?**', (route) =>
+      route.fulfill({
+        status: 502,
+        json: { code: lastError, error: 'Source unavailable', domain: 'example.test' },
+      }),
+    )
+    await page.route('**/api/network/sessions', (route) =>
+      route.fulfill({
+        json: {
+          browsers: [],
+          modes: [],
+          webviewAvailable: false,
+          platform: 'desktop',
+          clientLocal: true,
+          sessions: [
+            {
+              domain: 'example.test',
+              lastError,
+              modes: [],
+              verificationRequired: false,
+              usesProxy: false,
+            },
+          ],
+        },
+      }),
+    )
+    await page.goto('/app/sources/aniyomi-long?mode=catalogue')
+    await expect(page.locator('.catalogue-error')).toBeVisible()
+    const button = page.getByRole('button', { name: 'Changer de proxy et réessayer' })
+    if (lastError === 'geo_blocked') await expect(button).toBeVisible()
+    else await expect(button).toHaveCount(0)
+  })
+}
+
 test('a returned WebView session retries once without claiming verified access', async ({
   page,
 }) => {
@@ -57,6 +94,7 @@ test('a returned WebView session retries once without claiming verified access',
     return route.fulfill({ json: {} })
   })
   await page.goto('/app/sources/aniyomi-long?mode=catalogue')
+  await expect(page.getByRole('button', { name: 'Changer de proxy et réessayer' })).toHaveCount(0)
   await page.getByText('Modes de vérification disponibles', { exact: true }).click()
   await page
     .getByRole('button', { name: 'Ouvrir une fenêtre de vérification', exact: true })

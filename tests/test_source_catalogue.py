@@ -18,6 +18,35 @@ from animelab.services.aniyomi_dex_parser import SourceRecipe
 from animelab.services.extension_service import extension_service
 
 
+@pytest.mark.parametrize('endpoint', ['catalogue?mode=search&q=bleach', 'filters'])
+@pytest.mark.parametrize('failure,code,status', [
+    ('dns', 'network_dns', 502), ('tls', 'network_tls', 502),
+    ('timeout', 'network_timeout', 502), ('geo', 'geo_blocked', 502),
+    ('rate', 'rate_limited', 429), ('challenge', 'verification_required', 409),
+])
+def test_catalogue_preserves_source_failure_details(monkeypatch, endpoint, failure, code, status):
+    from animelab.routers.sources import source_catalogue
+    from animelab.services.source_http import SourceNetworkError, RateLimited
+    url = 'https://source.example/catalogue/?s=bleach'
+    response = httpx.Response(403 if failure == 'geo' else 429, request=httpx.Request('GET', url))
+    response.extensions['animelab_geo_blocked'] = failure == 'geo'
+    if failure == 'challenge':
+        error = VerificationRequired(url)
+    elif failure == 'rate':
+        error = RateLimited(response, 60)
+    elif failure == 'geo':
+        error = httpx.HTTPStatusError('Refused', request=response.request, response=response)
+    else:
+        error = SourceNetworkError('Source transport failed', failure, url)
+    monkeypatch.setattr(source_catalogue, 'browse' if endpoint.startswith('catalogue') else 'filters',
+                        AsyncMock(side_effect=error))
+    result = TestClient(app).get('/api/sources/test/' + endpoint)
+    assert result.status_code == status
+    assert result.json()['code'] == code
+    if failure == 'rate':
+        assert result.headers['Retry-After'] == '60'
+
+
 @pytest.fixture
 def providers(monkeypatch):
     for service in (scraping_service, voiranime_service, animepahe_service):

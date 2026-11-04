@@ -13,11 +13,27 @@ both directions, including removals. Unrelated domains are excluded and concurre
 HTTP refreshes take precedence over stale browser copies. A proxy/session change
 invalidates the exchange instead of reusing cookies on a different route.
 
-When browser cookies change, AnimeLab checks the original blocked resource using
-the HTTP client. Only a successful response releases the source, closes the
-managed browser, resumes waiting downloads and refreshes the pending search or
-catalogue. The confirmation button remains available as a fallback. Navigation
-away from a search cancels that search's pending refresh.
+Both managed modes suspend new HTTP requests and media streams for the source,
+after draining existing connections. Cookie changes synchronize the session only;
+they never trigger a parallel emulated HTTP probe. Confirm completion in AnimeLab
+or close the managed window. AnimeLab imports the session, stops browser
+networking, then resumes the pending operation. Its real response determines
+whether access succeeds; a cookie import is not reported as verified access.
+Navigation away from a search cancels that search's pending refresh.
+
+Chromium supplies its actual user agent through CDP. Android uses the installed
+WebView's default user agent, and desktop WebView keeps its native engine's user
+agent. AnimeLab persists the learned user agent with each domain's cookies and
+route. It removes incompatible client hints and old Cloudflare clearance when
+the browser identity changes, preserving unrelated login cookies. A route change
+invalidates both the learned identity and its cookies.
+
+A CAPTCHA, ordinary HTTP 403/451, DNS error, timeout, TLS error or interrupted
+transfer never triggers proxy rotation. Only an explicit country/region refusal
+can allow one retry through the opted-in proxy pool, before any bytes are exposed.
+The manual rotation API applies the same geographic restriction. Manual operator
+proxy configuration remains available; keep the same route during verification.
+See the [comparative study and source-specific diagnosis](studies/cloudflare-sessions-2026-11-03.md).
 
 Android uses Android System WebView and CookieManager; no additional Chromium
 runtime is bundled. CookieManager exposes fewer attributes than Chromium's CDP:
