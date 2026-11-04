@@ -344,13 +344,14 @@ async def resolve_stream(
     container_source = None
     if source not in ("voir-anime", "animepahe", "french-manga"):
         container_source = extension_service.get_container_source_by_id(source)
-        if not container_source:
+        if not container_source and not source:
             try:
                 parsed_ep = urllib.parse.urlparse(episodeUrl)
                 ep_host = (parsed_ep.hostname or "").lower()
                 if ep_host:
                     for src in extension_service.get_enabled_container_sources():
-                        if src.base_url and ep_host in src.base_url.lower():
+                        source_host = (urllib.parse.urlparse(src.base_url).hostname or '').lower()
+                        if source_host and (ep_host == source_host or ep_host.endswith('.' + source_host)):
                             container_source = src
                             break
             except VerificationRequired:
@@ -378,14 +379,8 @@ async def resolve_stream(
 
             # Priorité au serveur demandé s'il est spécifié
             candidates = list(container_sources)
-            if server and server != "auto":
-                matched = [
-                    cs for cs in container_sources
-                    if (cs.get("server") if isinstance(cs, dict) else getattr(cs, "server", "")).lower() == server.lower()
-                    or (cs.get("name") if isinstance(cs, dict) else getattr(cs, "name", "")).lower() == server.lower()
-                ]
-                if matched:
-                    candidates = matched + [cs for cs in container_sources if cs not in matched]
+            from animelab.services.extension_media import prioritize_candidates
+            candidates = prioritize_candidates(candidates, server, quality)
 
             candidate_failures = []
             for cand in candidates:

@@ -135,6 +135,7 @@ async def fetch_enriched_anime_detail(url: str, source: str = "french-manga") ->
         "detail_obj": detail,
         "anime": anime_dump,
         "source": source,
+        "sourceName": provider.name,
         "isFavorite": is_favorite,
         "autoDownload": auto_download,
         "downloadedEpisodes": list(downloaded_set),

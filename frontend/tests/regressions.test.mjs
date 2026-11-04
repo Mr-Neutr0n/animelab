@@ -194,7 +194,7 @@ test('the actual detail view queues only the checked VF episode', async () => {
       '@/stores/notifications': inline('export const useNotifications=()=>({notify:()=>{}});'),
       '@/stores/searchContext': inline('export const useSearchContext=()=>({restore:()=>{}});'),
       vue: inline(
-        `export {ref,computed} from '${import.meta.resolve('vue')}'; export const onMounted=()=>{}; export const watch=()=>{};`,
+        `export {ref,computed} from '${import.meta.resolve('vue')}'; export const onMounted=()=>{}; export const onUnmounted=()=>{}; export const watch=()=>{};`,
       ),
       'vue-router': inline(
         `export const useRouter=()=>({push:()=>{}}); export const useRoute=()=>({query:{}});`,

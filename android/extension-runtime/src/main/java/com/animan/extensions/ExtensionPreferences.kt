@@ -44,6 +44,7 @@ internal object ExtensionPreferences {
                 else -> null
             }
             JSONObject().put("key", preference.key).put("title", preference.title?.toString())
+                .put("summary", if (secret) JSONObject.NULL else preference.summary?.toString())
                 .put("type", type).put("enabled", preference.isEnabled).put("value", if(secret) "" else value)
                 .put("secret",secret).put("hasValue", secret && !preference.sharedPreferences?.getString(preference.key,"").isNullOrEmpty())
                 .put("entries", when (preference) {

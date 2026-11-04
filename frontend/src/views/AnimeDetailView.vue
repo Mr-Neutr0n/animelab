@@ -125,6 +125,7 @@
       </div>
     </header>
 
+    <VerificationPrompt :challenges="animeStore.detailChallenges" />
     <!-- Loading -->
     <div v-if="animeStore.isDetailLoading" class="loading-state">
       <div class="spinner"></div>
@@ -155,7 +156,7 @@
           <h1 class="tachiyomi-main-title">{{ tx(detail.anime.title) }}</h1>
           <div class="tachiyomi-meta-line">
             <span class="tachiyomi-meta-icon">👤</span>
-            <span>{{ tx(detail.anime.type || 'Animation') }}</span>
+            <span>{{ tx(detail.anime.studio || detail.anime.type || 'Auteur inconnu') }}</span>
           </div>
           <div class="tachiyomi-meta-line">
             <span class="tachiyomi-meta-icon">✏️</span>
@@ -163,7 +164,10 @@
           </div>
           <div class="tachiyomi-meta-line">
             <span class="tachiyomi-meta-icon">🕒</span>
-            <span>{{ tx(detail.anime.status || 'En cours') }} • {{ tx(detail.source) }}</span>
+            <span
+              >{{ tx(detail.anime.status || nativeStatus) }} •
+              {{ tx(detail.sourceName || detail.source) }}</span
+            >
           </div>
         </div>
       </section>
@@ -410,6 +414,30 @@
           }}
         </p>
 
+        <label class="episode-order"
+          >{{ tx('Ordre des épisodes') }}
+          <select v-model="episodeOrder">
+            <option value="source">{{ tx('Ordre de la source') }}</option>
+            <option value="asc">{{ tx('Du premier au dernier') }}</option>
+            <option value="desc">{{ tx('Du dernier au premier') }}</option>
+          </select>
+        </label>
+        <p v-if="!filteredEpisodes.length" class="episode-empty" role="status">
+          {{
+            tx(
+              detail.anime.episodes.length
+                ? 'Aucun épisode ne correspond aux filtres.'
+                : 'La source n’a renvoyé aucun épisode pour cette série.',
+            )
+          }}
+          <button
+            v-if="!detail.anime.episodes.length"
+            class="btn btn-secondary"
+            @click="fetchDetail"
+          >
+            {{ tx('Réessayer') }}
+          </button>
+        </p>
         <!-- Episodes List (Tachiyomi Style) -->
         <div class="episode-list">
           <div
@@ -587,7 +615,13 @@
         </div>
 
         <!-- Floating Action Button (FAB) Tachiyomi -->
-        <button type="button" class="tachiyomi-fab" :title="tx(fabText)" @click="onFabClick">
+        <button
+          v-if="nextUnwatchedEpisode"
+          type="button"
+          class="tachiyomi-fab"
+          :title="tx(fabText)"
+          @click="onFabClick"
+        >
           <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7Z" fill="currentColor" /></svg>
           <span class="tachiyomi-fab-text">{{ tx(fabText) }}</span>
         </button>
@@ -642,7 +676,7 @@
 
 <script setup lang="ts">
 import { tx } from '@/utils/locale'
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAnimeStore } from '@/stores/anime'
 import { usePlayerStore } from '@/stores/player'
@@ -654,6 +688,7 @@ import { useNotifications } from '@/stores/notifications'
 import { episodeKey, episodeFileName } from '@/utils/episodes'
 import type { Episode, OutputProfile } from '@/types'
 import OutputProfilePicker from '@/components/OutputProfilePicker.vue'
+import VerificationPrompt from '@/components/VerificationPrompt.vue'
 
 const searchContext = useSearchContext()
 const notifications = useNotifications()
@@ -668,6 +703,7 @@ const isBatchMenuOpen = ref(false)
 const isOverflowMenuOpen = ref(false)
 const isSynopsisExpanded = ref(false)
 const epFilter = ref('')
+const episodeOrder = ref('source')
 const versionFilter = ref('')
 const episodeVersions = computed(() =>
   [...new Set(detail.value?.anime.episodes.map((ep) => ep.version || '') || [])].filter(Boolean),
@@ -705,6 +741,12 @@ function returnToResults() {
 }
 
 const detail = computed(() => animeStore.currentDetail)
+const nativeStatus = computed(
+  () =>
+    (({ 1: 'En cours', 2: 'Terminé', 4: 'En pause', 5: 'Annulé' }) as Record<number, string>)[
+      Number(detail.value?.anime.nativeMetadata?.status)
+    ] || 'Inconnu',
+)
 watch(
   () => libraryStore.favorites,
   (favorites) => {
@@ -724,6 +766,10 @@ const filteredEpisodes = computed(() => {
   const list = detail.value.anime.episodes.filter(
     (ep) => !versionFilter.value || ep.version === versionFilter.value,
   )
+  if (episodeOrder.value !== 'source')
+    list.sort(
+      (a, b) => (Number(a.number) - Number(b.number)) * (episodeOrder.value === 'desc' ? -1 : 1),
+    )
   if (!epFilter.value.trim()) return list
   const q = epFilter.value.trim().toLowerCase()
   return list.filter(
@@ -740,7 +786,10 @@ const hiddenSelectedCount = computed(
 
 const nextUnwatchedEpisode = computed(() => {
   if (!detail.value) return null
-  return detail.value.anime.episodes.find((e) => !isWatched(e)) || detail.value.anime.episodes[0]
+  const episodes = [...detail.value.anime.episodes]
+    .filter((ep) => !versionFilter.value || ep.version === versionFilter.value)
+    .sort((a, b) => Number(a.number) - Number(b.number))
+  return episodes.find((e) => !isWatched(e)) || episodes[0]
 })
 
 const fabText = computed(() => {
@@ -860,6 +909,7 @@ watch(
 onMounted(() => {
   fetchDetail()
 })
+onUnmounted(() => animeStore.clearDetail())
 
 function playEpisode(ep: Episode) {
   if (!detail.value) return
@@ -947,7 +997,7 @@ async function confirmBatchDownload() {
 }
 function triggerBatchPreset(mode: string) {
   isBatchMenuOpen.value = false
-  const all = filteredEpisodes.value
+  const all = [...filteredEpisodes.value].sort((a, b) => Number(a.number) - Number(b.number))
   let targets: Episode[] = []
   if (mode.startsWith('next-'))
     targets = all.filter((ep) => !isWatched(ep) && !ep.isDownloaded).slice(0, Number(mode.slice(5)))

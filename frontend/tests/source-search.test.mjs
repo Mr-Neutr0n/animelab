@@ -291,3 +291,54 @@ test('catalogue requests preserve tags and the pagination cursor', async () => {
     globalThis.fetch = previous
   }
 })
+
+test('slow detail responses and responses after leaving cannot replace the current series', async (t) => {
+  mockApi(t)
+  const previous = api.getAnimeDetail
+  t.after(() => {
+    api.getAnimeDetail = previous
+  })
+  const complete = new Map()
+  api.getAnimeDetail = (url) => new Promise((resolve) => complete.set(url, resolve))
+  const store = useAnimeStore()
+  const old = store.fetchAnimeDetail('old', 'aniyomi:1')
+  const latest = store.fetchAnimeDetail('new', 'aniyomi:2')
+  complete.get('new')({ anime: { title: 'New' } })
+  await latest
+  complete.get('old')({ anime: { title: 'Old' } })
+  await old
+  assert.equal(store.currentDetail.anime.title, 'New')
+  const abandoned = store.fetchAnimeDetail('abandoned', 'aniyomi:1')
+  store.clearDetail()
+  complete.get('abandoned')({ anime: { title: 'Abandoned' } })
+  await abandoned
+  assert.equal(store.currentDetail, null)
+  assert.equal(store.isDetailLoading, false)
+})
+
+test('a detail challenge resumes the extension after verification and is cancelled on leaving', async (t) => {
+  mockApi(t)
+  const previous = api.getAnimeDetail
+  t.after(() => {
+    api.getAnimeDetail = previous
+  })
+  let calls = 0
+  api.getAnimeDetail = async () => {
+    if (++calls === 1)
+      throw new ApiError('Verification needed', 409, {
+        code: 'verification_required',
+        domain: 'source.example',
+        url: 'https://source.example/series',
+      })
+    return { anime: { title: 'Resumed series' } }
+  }
+  const store = useAnimeStore(),
+    verification = useVerificationStore()
+  await store.fetchAnimeDetail('https://source.example/series', 'aniyomi:1')
+  assert.equal(store.detailChallenges.length, 1)
+  await verification.start('source.example')
+  await verification.complete()
+  assert.equal(store.currentDetail.anime.title, 'Resumed series')
+  assert.equal(store.detailChallenges.length, 0)
+  store.clearDetail()
+})

@@ -41,6 +41,7 @@ export interface AndroidExtensionState {
 }
 
 export interface NativePreference {
+  summary?: string | null
   key?: string
   title: string
   type: 'group' | 'text' | 'boolean' | 'select' | 'multiSelect' | 'unsupported'

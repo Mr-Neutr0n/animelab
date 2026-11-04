@@ -66,6 +66,20 @@ async def test_unknown_or_disabled_source_never_falls_back_and_capabilities_do_n
     assert registry.detect('https://french-manga.example.evil.invalid/series','missing')=='missing'
 
 
+def test_explicit_apk_identity_wins_over_another_provider_on_the_same_domain():
+    native = provider('voir-anime')
+    native.base_url = 'https://voiranime.example'
+    apk = provider('voiranime-apk')
+    apk.base_url = native.base_url
+    apk.pkg = 'fixture.voiranime'
+    apk.source_id = 'aniyomi:1152921504606846977'
+    extensions = SimpleNamespace(get_enabled_container_sources=lambda: [apk])
+    registry = SourceRegistry({'voir-anime': native}, extensions)
+    assert registry.detect(native.base_url+'/series', apk.source_id) == apk.source_id
+    assert registry.detect(native.base_url+'/series', 'voir-anime') == 'voir-anime'
+    assert registry.detect('https://voiranime.example.evil.invalid/series', apk.source_id) == apk.source_id
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize('selection', ['specific', 'all'])
 @pytest.mark.parametrize('runtime,delay,succeeds', [('android-apk', .2, True),

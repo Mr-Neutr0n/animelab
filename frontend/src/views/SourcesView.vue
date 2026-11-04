@@ -3,13 +3,14 @@
     <template v-if="!sourceId">
       <header class="source-heading">
         <div>
-          <h1>Sources</h1>
+          <h1>{{ tx('Explorer') }}</h1>
           <p>{{ tx('Parcourez vos catalogues et les extensions installées.') }}</p>
         </div>
         <router-link to="/extensions" class="btn btn-secondary">{{
           tx('Gérer les extensions')
         }}</router-link>
       </header>
+      <ExplorerNavigation active="sources" />
       <input
         v-model="sourceQuery"
         class="input"
@@ -38,15 +39,9 @@
                 :aria-pressed="preferences.pinned.includes(item.id)"
                 @click="preferences.toggle(item.id)"
               >
-                {{ tx(preferences.pinned.includes(item.id) ? '★' : '☆') }}</button
-              ><span class="source-avatar">{{
-                tx(
-                  item.name
-                    .replace(/^Aniyomi:\s*/i, '')
-                    .slice(0, 2)
-                    .toUpperCase(),
-                )
-              }}</span>
+                {{ tx(preferences.pinned.includes(item.id) ? '★' : '☆') }}
+              </button>
+              <ExtensionAvatar :name="item.name" />
               <div>
                 <h3>{{ tx(item.name) }}</h3>
                 <p>{{ tx(item.lang.toUpperCase()) }} · {{ tx(host(item.baseUrl)) }}</p>
@@ -264,6 +259,8 @@
 </template>
 
 <script setup lang="ts">
+import ExplorerNavigation from '@/components/ExplorerNavigation.vue'
+import ExtensionAvatar from '@/components/ExtensionAvatar.vue'
 import { tx } from '@/utils/locale'
 import { ref, computed, watch, onMounted, onUnmounted, onActivated, onDeactivated } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -324,17 +321,27 @@ let generation = 0,
   pageSequence = 0,
   filterSequence = 0,
   disposed = false
-const groups = computed(() =>
-  ['native', 'imported'].map((type) => ({
-    type,
-    label: type === 'native' ? 'Préinstallées' : 'Extensions installées',
-    sources: sources.value.filter(
-      (s) =>
-        s.type === type &&
-        `${s.name} ${s.lang}`.toLocaleLowerCase().includes(sourceQuery.value.toLocaleLowerCase()),
-    ),
-  })),
-)
+const groups = computed(() => {
+  const visible = sources.value.filter((s) =>
+    `${s.name} ${s.lang}`.toLocaleLowerCase().includes(sourceQuery.value.toLocaleLowerCase()),
+  )
+  const pinned = visible.filter((s) => preferences.pinned.includes(s.id))
+  const remaining = visible.filter((s) => !preferences.pinned.includes(s.id))
+  const labels: Record<string, string> = { fr: 'Français', en: 'English', all: 'Multilingue' }
+  return [
+    ...(pinned.length ? [{ type: 'pinned', label: 'Épinglées', sources: pinned }] : []),
+    ...[...new Set(remaining.map((s) => s.lang))]
+      .sort()
+      .map((lang) => ({
+        type: lang,
+        label: labels[lang] || lang.toUpperCase(),
+        sources: remaining
+          .filter((s) => s.lang === lang)
+          .sort((a, b) => a.name.localeCompare(b.name)),
+      })),
+    ...(!visible.length ? [{ type: 'empty', label: 'Sources', sources: [] }] : []),
+  ]
+})
 const tagGroups = computed(() =>
   [...new Set(filters.value.tags.map((t) => t.group))]
     .map((name) => ({
@@ -890,6 +897,48 @@ select:focus {
   }
   .input[type='search'] {
     min-width: 0;
+  }
+}
+</style>
+
+<style scoped>
+.source-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.source-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  padding: 1rem 0.25rem;
+}
+.source-identity {
+  flex: 1;
+  min-width: min(250px, 100%);
+}
+.source-card-actions {
+  margin: 0;
+}
+.source-pin {
+  order: 2;
+  margin-left: auto;
+}
+.source-group h2 {
+  color: var(--muted);
+  font-size: 1rem;
+}
+@media (min-width: 1000px) {
+  .source-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 2rem;
   }
 }
 </style>

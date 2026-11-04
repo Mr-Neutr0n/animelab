@@ -198,7 +198,11 @@ class SourceRegistry:
         aliases = {'animepahe': ('animepahe.com', 'animepahe.pw', 'animepahe.si', 'kwik.cx', 'kwik.si', 'pahe.win'),
                    'voir-anime': ('voir-anime.to', 'voiranime.to', 'voiranime.io', 'voiranime.homes'),
                    'french-manga': ('french-manga.net',)}
-        for provider in self.all():
+        providers = self.all()
+        # Several runtimes can serve the same site. Keep the selected source
+        # when its origin matches, before considering automatic detection.
+        providers.sort(key=lambda provider: provider.id != fallback)
+        for provider in providers:
             domains = [urlparse(provider.base_url).hostname or ''] + list(aliases.get(provider.id, ()))
             if any(domain and (host == domain or host.endswith('.' + domain)) for domain in domains):
                 return provider.id
