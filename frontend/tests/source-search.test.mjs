@@ -342,3 +342,61 @@ test('a detail challenge resumes the extension after verification and is cancell
   assert.equal(store.detailChallenges.length, 0)
   store.clearDetail()
 })
+
+test('video resolution resumes after verification and never revives a closed player', async (t) => {
+  mockApi(t)
+  const originals = [api.resolveVideoStream, api.openPlaybackSession, api.savePlaybackCheckpoint]
+  t.after(() => {
+    ;[api.resolveVideoStream, api.openPlaybackSession, api.savePlaybackCheckpoint] = originals
+  })
+  api.openPlaybackSession = async () => ({
+    sessionId: 'fixture',
+    positionSeconds: 0,
+    selection: { quality: 'auto', server: 'auto', audio: null },
+  })
+  api.savePlaybackCheckpoint = async () => ({})
+  let calls = 0,
+    blocked = true
+  api.resolveVideoStream = async () => {
+    calls++
+    if (blocked)
+      throw new ApiError('Verification needed', 409, {
+        code: 'verification_required',
+        domain: 'video.example',
+        url: 'https://video.example/embed',
+      })
+    return { streamUrl: '/api/media/extension-resource/fixture', subtitles: [] }
+  }
+  const { usePlayerStore } = await import(
+    await moduleUrl('../src/stores/player.ts', {
+      ...shared,
+      './verification': verificationUrl,
+      '@/utils/episodes': await moduleUrl('../src/utils/episodes.ts'),
+    })
+  )
+  const player = usePlayerStore(),
+    verification = useVerificationStore()
+  const episode = {
+    number: 1,
+    title: 'Episode 1',
+    version: 'VF',
+    playerUrl: 'https://source.example/episode',
+  }
+  await player.openPlayer('Series', 'https://source.example/series', 'aniyomi:1', episode, [
+    episode,
+  ])
+  assert.equal(player.challenges.length, 1)
+  blocked = false
+  await verification.start('video.example')
+  await verification.complete()
+  assert.equal(player.videoUrl, '/api/media/extension-resource/fixture')
+  blocked = true
+  await player.resolveStream()
+  const before = calls
+  player.closePlayer()
+  await verification.start('video.example')
+  await verification.complete()
+  assert.equal(calls, before)
+  assert.equal(player.videoUrl, null)
+  assert.equal(player.challenges.length, 0)
+})

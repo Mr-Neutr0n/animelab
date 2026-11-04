@@ -156,3 +156,48 @@ test('an empty episode list offers retry and does not show a nonfunctional play 
   await page.getByRole('button', { name: 'Réessayer', exact: true }).click()
   await expect.poll(() => calls).toBe(2)
 })
+
+test('a player challenge exposes verification and retries the selected APK episode', async ({
+  page,
+}) => {
+  await mockApp(page)
+  await page.setViewportSize({ width: 360, height: 780 })
+  await page.route('**/api/anime/detail?**', (route) =>
+    route.fulfill({
+      json: { success: true, anime, source: sid, downloadedEpisodes: [], watchedEpisodes: [] },
+    }),
+  )
+  let calls = 0
+  await page.route('**/api/media/stream/resolve?**', (route) => {
+    calls++
+    return calls === 1
+      ? route.fulfill({
+          status: 409,
+          json: {
+            code: 'verification_required',
+            domain: 'video.example',
+            url: 'https://video.example/embed',
+            error: 'Verification needed',
+          },
+        })
+      : route.fulfill({
+          json: { streamUrl: '/api/media/extension-resource/fixture', subtitles: [] },
+        })
+  })
+  await page.route('**/api/network/recheck', (route) =>
+    route.fulfill({ json: { success: true, domain: 'video.example', resumed: 0 } }),
+  )
+  await page.goto(
+    `/app/anime?url=${encodeURIComponent(anime.url)}&source=${encodeURIComponent(sid)}`,
+  )
+  await page.getByRole('button', { name: 'Lire l’épisode 1 VF', exact: true }).click()
+  const verification = page.getByRole('region', { name: 'Accès au site bloqué' })
+  await expect(verification).toBeVisible()
+  await expect(verification.getByRole('link')).toHaveAttribute(
+    'href',
+    'https://video.example/embed',
+  )
+  await verification.getByRole('button', { name: 'Je suis revenu, réessayer' }).click()
+  await expect.poll(() => calls).toBe(2)
+  await expect(verification).toHaveCount(0)
+})

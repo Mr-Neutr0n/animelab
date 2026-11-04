@@ -15,7 +15,7 @@ Les dépôts, importations, mises à jour, diagnostics, recompilations et édite
 - L’estimation de taille ne transmettait pas les en-têtes du flux natif. Elle conserve désormais le Referer et l’agent utilisateur reçus de l’extension.
 - Un épisode natif VF héritait de VOSTFR par défaut. Sa version est maintenant reprise du nom, du chemin ou de la série lorsqu’ils la précisent ; sinon elle reste non précisée. Le studio/auteur et le statut natifs peuvent être présentés sans inventer « En cours ».
 - Une réponse de fiche lente pouvait remplacer une série plus récente. Les réponses obsolètes sont ignorées, y compris après avoir quitté la page.
-- Une vérification WebView sur une fiche ne proposait pas de reprise de l’opération. Le même mécanisme de session que pour la recherche s’applique désormais aux fiches.
+- Une vérification WebView sur une fiche ou dans le lecteur ne proposait pas de reprise de l’opération. Le même mécanisme de session que pour la recherche s’applique désormais aux fiches et à la résolution vidéo. Fermer le lecteur annule sa reprise en attente.
 - « Commencer » et « épisodes suivants » suivaient l’ordre renvoyé par l’extension, souvent décroissant. Ils partent maintenant du premier épisode non vu de la version sélectionnée. Une liste vide propose une nouvelle tentative et aucun bouton de lecture inactif.
 
 Les numéros fractionnaires natifs restent conservés dans les métadonnées ; la numérotation de la file reste entière. Cette modification ne constitue pas une migration générale de l’identité des épisodes.
@@ -48,6 +48,13 @@ Ces essais PC ont validé la résolution, pas encore le téléchargement complet
 
 ## Réception Android
 
-En cours : compilation de la version isolée et test sur le Samsung SCV38 (Android 10, ARM64). Ne pas considérer cette section comme une preuve de téléchargement réussi avant ajout du résultat physique.
+Première réception sur le Samsung SCV38 (Android 10, ARM64), APK isolé du commit `5ed222a641f05db1db1d40294fa90d50a2a109b5`, SHA-256 `750b80ec1920dc2af92423a43e3be2f7c53cb7a3bc484085413d316d7e63889f` :
+
+- Anime-sama 14.33 : 14 résultats, Bleach saison 1, 366 épisodes ; résolution vidéo interrompue par une réponse HTTP 409. Aucun téléchargement complet validé à ce stade.
+- Voiranime 14.3 : 10 résultats, One Piece Film: Red (VF), un épisode ; le pilote excluait à tort le numéro 0 utilisé pour ce film. Cette erreur du pilote a été corrigée et ne constitue pas un défaut de l’APK.
+
+Ce premier essai a révélé l’absence de vérification/reprise dans le lecteur. Le correctif et le pilote ajusté font l’objet d’une nouvelle réception, suivie dans la [PR nº 40](https://github.com/loeuf237/animelab/pull/40). Les résultats de cette première réception ne prouvent pas le téléchargement complet.
+
+Validation locale du moteur : 1 127 tests réussis, 5 ignorés. Interface : 110 scénarios couverts, dont un relancé après un dépassement de délai en exécution parallèle ; puis 40 tests unitaires et 6 tests navigateur ciblés réussis après l’ajout de la reprise du lecteur et la compaction des sources. La CI Android 29/30/35 du commit `5ed222a` est réussie.
 
 Aucune rotation de proxy ni publication de release n’est nécessaire à ces vérifications.

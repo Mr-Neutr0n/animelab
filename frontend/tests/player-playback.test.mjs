@@ -22,6 +22,9 @@ const { api } = await import(apiUrl)
 const storeUrl = moduleUrl(
   await readFile(new URL('../src/stores/player.ts', import.meta.url), 'utf8'),
   {
+    './verification': inline(
+      'export const useVerificationStore=()=>({clearPending(){},waitForVerification(){}}); export const challengeFromError=()=>null;',
+    ),
     vue,
     pinia: import.meta.resolve('pinia'),
     '@/api/client': apiUrl,
@@ -41,6 +44,9 @@ const component = (
       {
         vue,
         '@/stores/player': storeUrl,
+        '@/components/VerificationPrompt.vue': inline(
+          'export default {props:["challenges"],render(){return null}};',
+        ),
         '@/utils/locale': inline('export const tx=v=>String(v??"");'),
         '@/stores/library': inline('export const useLibraryStore=()=>({markWatched(){}});'),
         'hls.js': inline(`export default class Hls {

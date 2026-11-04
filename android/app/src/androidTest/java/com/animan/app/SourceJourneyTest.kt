@@ -19,6 +19,7 @@ import java.util.concurrent.TimeUnit
 /** Opt-in live checks; the main app, APKs and other hosts are never modified. */
 @RunWith(AndroidJUnit4::class)
 class SourceJourneyTest {
+    private class TrialFailure(val code: String, val domain: String) : RuntimeException(code)
     private fun encoded(value: String) = URLEncoder.encode(value, "UTF-8")
     private fun request(path: String, body: JSONObject? = null): JSONObject {
         val connection = URL(EngineHost.baseUrl + path).openConnection(Proxy.NO_PROXY) as HttpURLConnection
@@ -32,7 +33,12 @@ class SourceJourneyTest {
             }
             val code = connection.responseCode
             val data = (if (code < 400) connection.inputStream else connection.errorStream).bufferedReader().use { it.readText() }
-            check(code < 400) { "HTTP $code: " + JSONObject(data).optString("code", "request_failed") }
+            if (code >= 400) {
+                val failure = JSONObject(data)
+                val failureCode = failure.optString("code", "http_$code").takeIf { it.matches(Regex("[a-z0-9_]{1,80}")) } ?: "http_$code"
+                val domain = failure.optString("domain").takeIf { it.matches(Regex("[A-Za-z0-9.-]{1,253}")) } ?: ""
+                throw TrialFailure(failureCode, domain)
+            }
             return if (data.trimStart().startsWith("[")) JSONObject().put("tasks", JSONArray(data)) else JSONObject(data)
         } finally { connection.disconnect() }
     }
@@ -81,7 +87,7 @@ class SourceJourneyTest {
                     val episodes = anime.getJSONArray("episodes")
                     row.put("episodes", episodes.length())
                     check(episodes.length() > 0) { "empty_episodes" }
-                    val episode = (0 until episodes.length()).map { episodes.getJSONObject(it) }.filter { it.getInt("number") > 0 }.minBy { it.getInt("number") }
+                    val episode = (0 until episodes.length()).map { episodes.getJSONObject(it) }.filter { it.getInt("number") >= 0 }.minBy { it.getInt("number") }
                     val episodeUrl = episode.getString("playerUrl")
                     row.put("episode", episode.getInt("number")).put("versionLabel", episode.optString("version"))
                     phase = "resolve"
@@ -113,6 +119,7 @@ class SourceJourneyTest {
                     row.put("passed", true)
                 } catch (failure: Exception) {
                     row.put("passed", false).put("phase", phase).put("failureType", failure.javaClass.simpleName)
+                    if (failure is TrialFailure) row.put("failureCode", failure.code).put("verificationDomain", failure.domain)
                     // Keep live endpoints, cookies, resolved video tokens and response bodies private.
                 } finally {
                     proof.put(row)

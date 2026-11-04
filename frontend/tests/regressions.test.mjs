@@ -105,6 +105,7 @@ const episodeUtilsUrl = await moduleUrl('../src/utils/episodes.ts')
 const { episodeKey, episodeFileName } = await import(episodeUtilsUrl)
 const { usePlayerStore } = await import(
   await moduleUrl('../src/stores/player.ts', {
+    './verification': `data:text/javascript;base64,${Buffer.from('export const useVerificationStore=()=>({clearPending(){},waitForVerification(){}}); export const challengeFromError=()=>null;').toString('base64')}`,
     '@/api/client': apiUrl,
     '@/utils/episodes': episodeUtilsUrl,
     vue: import.meta.resolve('vue'),

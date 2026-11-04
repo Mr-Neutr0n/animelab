@@ -28,6 +28,36 @@
         <div v-if="group.sources.length" class="source-list">
           <article v-for="item in group.sources" :key="item.id" class="source-card">
             <div class="source-identity">
+              <ExtensionAvatar :name="item.name" />
+              <button
+                class="source-open"
+                :disabled="!item.isEnabled"
+                @click="openSource(item.id, defaultView(item))"
+              >
+                <h3>{{ tx(item.name) }}</h3>
+                <p>{{ tx(item.lang.toUpperCase()) }} · {{ tx(host(item.baseUrl)) }}</p>
+              </button>
+              <details v-if="item.isEnabled" class="source-view-menu">
+                <summary
+                  :aria-label="tx(`Catalogues de ${item.name}`)"
+                  :title="tx(`Catalogues de ${item.name}`)"
+                >
+                  <SlidersHorizontal :size="20" />
+                </summary>
+                <div class="source-card-actions">
+                  <button
+                    v-for="view in item.views"
+                    :key="view.id"
+                    class="btn btn-secondary"
+                    @click="openSource(item.id, view.id)"
+                  >
+                    {{ tx(view.label) }}
+                  </button>
+                </div>
+              </details>
+              <router-link v-else to="/extensions" class="source-enable">{{
+                tx('Activer')
+              }}</router-link>
               <button
                 type="button"
                 class="source-pin"
@@ -39,28 +69,9 @@
                 :aria-pressed="preferences.pinned.includes(item.id)"
                 @click="preferences.toggle(item.id)"
               >
-                {{ tx(preferences.pinned.includes(item.id) ? '★' : '☆') }}
-              </button>
-              <ExtensionAvatar :name="item.name" />
-              <div>
-                <h3>{{ tx(item.name) }}</h3>
-                <p>{{ tx(item.lang.toUpperCase()) }} · {{ tx(host(item.baseUrl)) }}</p>
-              </div>
-              <span v-if="!item.isEnabled" class="badge">{{ tx('Désactivée') }}</span>
-            </div>
-            <div v-if="item.isEnabled" class="source-card-actions">
-              <button
-                v-for="view in item.views"
-                :key="view.id"
-                class="btn btn-secondary"
-                @click="openSource(item.id, view.id)"
-              >
-                {{ tx(view.label) }}
+                {{ preferences.pinned.includes(item.id) ? '★' : '☆' }}
               </button>
             </div>
-            <router-link v-else to="/extensions" class="btn btn-secondary">{{
-              tx('Activer dans Extensions')
-            }}</router-link>
           </article>
         </div>
         <p v-else class="source-empty">
@@ -259,6 +270,7 @@
 </template>
 
 <script setup lang="ts">
+import { SlidersHorizontal } from 'lucide-vue-next'
 import ExplorerNavigation from '@/components/ExplorerNavigation.vue'
 import ExtensionAvatar from '@/components/ExtensionAvatar.vue'
 import { tx } from '@/utils/locale'
@@ -375,6 +387,15 @@ async function loadSources() {
   } finally {
     listLoading.value = false
   }
+}
+function defaultView(item: CatalogueSource) {
+  return (
+    ['popular', 'latest', 'catalogue', 'search'].find((mode) =>
+      item.views.some((view) => view.id === mode),
+    ) ||
+    item.views[0]?.id ||
+    'search'
+  )
 }
 function openSource(id: string, view: string) {
   void router.push({ name: 'sources', params: { sourceId: id }, query: { mode: view } })
@@ -938,5 +959,68 @@ select:focus {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0 2rem;
   }
+}
+</style>
+
+<style scoped>
+.source-card {
+  position: relative;
+  padding: 0.75rem 0.25rem;
+}
+.source-open {
+  flex: 1;
+  min-width: 0;
+  color: var(--text);
+  background: none;
+  border: 0;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  padding: 0.25rem 0;
+}
+.source-open h3,
+.source-open p {
+  overflow-wrap: anywhere;
+}
+.source-open:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.source-view-menu > summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 44px;
+  color: var(--muted);
+  cursor: pointer;
+  list-style: none;
+}
+.source-view-menu[open] .source-card-actions {
+  position: absolute;
+  right: 0.25rem;
+  top: calc(100% - 5px);
+  z-index: 3;
+  display: grid;
+  padding: 0.5rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px #0003;
+  max-width: calc(100% - 0.5rem);
+}
+.source-pin {
+  flex-shrink: 0;
+  margin-left: 0;
+  width: 40px;
+}
+.source-identity {
+  gap: 0.75rem;
+  width: 100%;
+  min-width: 0;
+}
+.source-enable {
+  color: var(--accent);
+  font-size: 0.8rem;
 }
 </style>
