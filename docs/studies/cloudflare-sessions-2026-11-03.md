@@ -190,6 +190,59 @@ recette extraite de l'APK 14.33 : **12 résultats en 5,9 secondes**, sans ouvert
 de navigateur ni rotation de proxy. Cet essai vérifie la reprise des autres URL,
 pas l'accès au fichier refusé ni la lecture de toutes les vidéos.
 
+### Validation du candidat final sur le SCV38
+
+Le candidat signé construit depuis `2322836a970bb40fda425ee93199572d94bbe371`
+a ensuite été installé comme mise à jour sur le même téléphone. Son empreinte
+SHA-256 est `09f4ca5bfee3e61fdb09c5e51bf6f5892d19a01172d633d4bcd6fd819cf9a526`.
+Le certificat correspond à l'installation existante et les données sont conservées.
+
+- Les **deux tests du pont HTTP passent** sur le téléphone. Des fermetures de
+  lecteurs ont aussi été traitées pendant les appels réels, sans exception fatale
+  ni arrêt du processus principal.
+- La recherche réelle de l'APK Anime-sama renvoie **9 résultats pour Bleach en
+  9,1 secondes**, visibles dans l'interface, sans ouverture de WebView ni rotation
+  de proxy. L'essai PC et celui du téléphone utilisent respectivement la recette
+  extraite et le véritable APK ; leurs nombres de résultats sont consignés
+  séparément.
+- La fiche **Bleach Saison 1** charge son titre, son image et sa description,
+  mais la liste d'épisodes revient **vide**. Cet essai ne valide donc pas la
+  lecture ni le téléchargement de la série. Une exception réseau avalée par
+  l'extension peut masquer un refus sous une liste vide ; l'observation seule
+  ne prouve pas que le site n'a aucun épisode.
+
+La [CI générale](https://github.com/loeuf237/animelab/actions/runs/41678376485),
+la [validation des extensions APK](https://github.com/loeuf237/animelab/actions/runs/41678376600)
+et le [candidat Android signé](https://github.com/loeuf237/animelab/actions/runs/41678386986)
+passent sur cette révision. Python 3.13 en CI rapporte **1 110 tests réussis,
+8 ignorés**. L'application optimisée passe ses trois tests sur Android 11 et 15,
+en complément des sondes natives Android 10. Le workflow de validation ne publie
+aucune release.
+
+### Cause supplémentaire : origine absente lors du chargement des scripts
+
+Un essai contrôlé avec **trois sessions PC indépendantes**, même transport et
+même UA, a donné sur le script VOSTFR de Bleach Saison 1 : **403 sans Referer,
+200 avec `Referer: https://anime-sama.to/`, puis 403 sans Referer**. Avec cet
+en-tête, les scripts VOSTFR et VF renvoient respectivement 53 866 et 52 756 octets
+de JavaScript. La simple ouverture de leur URL dans une WebView ne fournit pas
+ce contexte de page ; son refus ne démontre donc pas un blocage général du
+navigateur ou une interdiction géographique.
+
+L'extension amont appelle `GET(docUrl)` sans ses en-têtes de source dans
+`fetchPlayers`, puis transforme les exceptions en liste vide. Le client source
+AnimeLab fournit désormais une origine publique aux requêtes GET/HEAD de scripts
+JavaScript de **la même origine** lorsqu'aucun Referer n'est fourni. Les en-têtes
+explicites, y compris un Referer vide, sont conservés. Les autres hôtes, ports,
+schémas, méthodes et médias sont exclus. Les changements de domaine de la source
+sont pris en compte sans reconstruire son client ; les identifiants, le chemin,
+la requête et le fragment des préférences ne sont jamais copiés dans cet en-tête.
+
+Cette adaptation de compatibilité est propre à AnimeLab ; ce n'est pas un
+comportement attribué à l'intercepteur Cloudflare d'Aniyomi. La régression Android
+exerce le véritable client de source dérivé jusqu'au pont, avec un transport
+contrôlé, et vérifie la portée ainsi que la conservation des en-têtes.
+
 Les essais d'interface vérifient la reprise et l'absence de promesse « accès
 vérifié ». L'instrumentation Android compare également l'UA exposé aux extensions
 à celui du WebView installé. Une compilation ne remplace pas l'exécution de cette

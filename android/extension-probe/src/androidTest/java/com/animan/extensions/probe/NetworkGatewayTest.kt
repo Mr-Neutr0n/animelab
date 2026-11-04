@@ -6,17 +6,79 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.animan.extensions.IExtensionHttp
 import eu.kanade.tachiyomi.network.NetworkHelper
+import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import okhttp3.CookieJar
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.concurrent.TimeUnit
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.*
 
 @RunWith(AndroidJUnit4::class)
 class NetworkGatewayTest {
+    @Test fun source_scripts_keep_their_origin_without_overriding_extension_headers_or_other_hosts() {
+        val requests=mutableListOf<JSONObject>()
+        val before=NetworkHelper.gateway
+        NetworkHelper.gateway=object : IExtensionHttp.Stub() {
+            override fun request(payload: String): ParcelFileDescriptor {
+                val input=JSONObject(payload); requests.add(input)
+                val result=JSONObject().put("url",input.getString("url")).put("status",200)
+                    .put("headers",JSONArray()).put("contentType","application/javascript")
+                    .put("body",Base64.encodeToString("var eps1=[];".toByteArray(),Base64.NO_WRAP))
+                val pipe=ParcelFileDescriptor.createPipe()
+                ParcelFileDescriptor.AutoCloseOutputStream(pipe[1]).use { it.write(result.toString().toByteArray()) }
+                return pipe[0]
+            }
+        }
+        try {
+            val helper=NetworkHelper(InstrumentationRegistry.getInstrumentation().targetContext)
+            Injekt.importModule(object : InjektModule {
+                override fun InjektRegistrar.registerInjectables() { addSingleton<NetworkHelper>(helper) }
+            })
+            val source=object : AnimeHttpSource() {
+                override val name="Script origin fixture"
+                override val lang="fr"
+                override val supportsLatest=false
+                override var baseUrl="https://private:credential@source.fixture.invalid/path?secret=value#private"
+            }
+            val client=source.client.newBuilder().cookieJar(CookieJar.NO_COOKIES)
+                .addInterceptor { chain -> chain.proceed(chain.request().newBuilder().header("X-Source","derived").build()) }
+                .build()
+            fun fetch(url: String, expected: String?, referer: String?=null, method: String="GET") {
+                val request=Request.Builder().url(url).apply {
+                    if(referer!=null) header("Referer",referer)
+                    if(method=="HEAD") head()
+                    if(method=="POST") post("payload".toRequestBody())
+                }.build()
+                client.newCall(request).execute().use { assertEquals(200,it.code) }
+                val headers=requests.last().getJSONArray("headers")
+                val values=(0 until headers.length()).associate { i -> headers.getJSONArray(i).let {
+                    it.getString(0).lowercase() to it.getString(1)
+                } }
+                assertEquals(expected,values["referer"])
+                assertEquals("derived",values["x-source"])
+            }
+            val script="https://source.fixture.invalid/catalogue/season/episodes.js"
+            fetch(script,"https://source.fixture.invalid/")
+            fetch(script,"https://source.fixture.invalid/",method="HEAD")
+            fetch(script,"https://explicit.fixture.invalid/",referer="https://explicit.fixture.invalid/")
+            fetch(script,"",referer="")
+            fetch("https://source.fixture.invalid/video.mp4",null)
+            fetch("https://cdn.fixture.invalid/episodes.js",null)
+            fetch("https://source.fixture.invalid:444/episodes.js",null)
+            fetch("http://source.fixture.invalid/episodes.js",null)
+            fetch(script,null,method="POST")
+            source.baseUrl="https://mirror.fixture.invalid/new-path"
+            fetch("https://mirror.fixture.invalid/episodes.js","https://mirror.fixture.invalid/")
+            fetch(script,null)
+        } finally { NetworkHelper.gateway=before }
+    }
+
     @Test fun derived_client_interceptors_can_follow_redirects_and_change_chain_options_without_sockets() {
         val requests=mutableListOf<JSONObject>()
         val before=NetworkHelper.gateway
