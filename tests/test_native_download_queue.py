@@ -82,9 +82,12 @@ async def test_native_queue_preserves_episode_fragment_and_uses_apk_resolution_a
 
 
 @pytest.mark.asyncio
-async def test_desktop_recipe_receives_its_complete_episode_fragment(monkeypatch):
+@pytest.mark.parametrize('url', [
+    'https://source.fixture.invalid/season/#animelab-episode=2',
+    'https://video.sibnet.ru/shell.php?videoid=123#players=%5B%22https%3A%2F%2Fvideo.fixture.invalid%2Fepisode.mp4%22%5D',
+])
+async def test_desktop_recipe_receives_its_complete_episode_fragment(monkeypatch, url):
     from animelab.services.source_resolvers import SourceResolverRegistry
-    url = 'https://source.fixture.invalid/season/#animelab-episode=2'
     video = 'https://video.fixture.invalid/episode.mp4'
     service = SimpleNamespace(runtime='recipe', get_episode_sources=AsyncMock(return_value=[{'url':video,'quality':'HD'}]))
     monkeypatch.setattr(extension_service,'get_container_source_by_id',lambda source:service)

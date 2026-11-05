@@ -43,7 +43,9 @@ async def resolve_imported(ctx, task, direct_url, skip_local):
     native = getattr(matched_container, 'runtime', '') == 'android-apk'
     target_url = task.fileUrl if native else direct_url
     video_sources = []
-    if matched_container and (native or not is_known_embed):
+    # Recipes can attach all alternate players to a known embed in its fragment.
+    # Let the selected recipe expand that reference before choosing an extractor.
+    if matched_container and (native or not is_known_embed or urlparse(target_url).fragment):
         video_sources = await matched_container.get_episode_sources(target_url)
     from animelab.services.extension_media import prioritize_candidates
     candidates = prioritize_candidates(video_sources, task.selectedServer, task.selectedQuality)

@@ -71,3 +71,15 @@ La réception physique du commit `171c476` a trouvé 14 résultats et 366 épiso
 Le chemin effectif de transfert conserve désormais l’URL complète, les candidats natifs et leurs données internes, et appelle le résolveur de l’APK. Il transmet les en-têtes et pistes au moteur de transfert. Les recettes desktop conservent elles aussi leur fragment d’épisode. Une source APK indisponible ne se replie pas sur un extracteur générique.
 
 La régression exécute la vraie file, le téléchargement HTTP via un transport contrôlé et la vérification FFprobe d’un MP4 synthétique. Elle couvre les numéros 0 et 7, deux vidéos partageant la même URL opaque mais des données internes différentes, les en-têtes nécessaires et l’absence de copie finale en double. Elle n’est pas une preuve de téléchargement d’un épisode réel : cette réception doit être ajoutée dans la PR après essai du nouvel APK.
+
+## Réception du 5 novembre
+
+L’APK de test du commit `1d9dadb4770e4e8a5ae6827f88a02fb5704188da` (SHA-256 `d712bf3b1a8a21e358f9f1e2e735184791fd8ab767811b41bbb2c3894949d3d0`) a été reconstruit à partir de l’artefact CI, puis vérifié avant installation. La CI générale (7 jobs) et Android (5 jobs) de ce commit est réussie. Seuls l’application de validation séparée et son pilote ont été remplacés.
+
+- Anime-sama 14.33 : après une première tentative interrompue par `network_timeout`, la reprise trouve 14 résultats, Bleach saison 1 et ses 366 épisodes, résout l’épisode 1 VOSTFR puis transfère **17 916 023 octets**. La limite de 480 s du téléchargement est atteinte avec l’état `DOWNLOADING`, `UNVERIFIED`, export en attente. Le défaut de résolution à 0 octet est corrigé ; le téléchargement complet et son intégrité ne sont pas validés. L’instrumentation est terminée et son processus n’est plus actif.
+- Voiranime 14.3 : 4 résultats pour Frieren, fiche Sousou no Frieren 2 (VF), 10 épisodes ; la résolution de l’épisode 1 renvoie 404 sans flux exploitable. Ce résultat ne démontre ni une incompatibilité générale de l’APK ni un blocage Cloudflare.
+- Sur PC, une tentative complète Voiranime atteint le téléchargement HLS, puis dépasse la limite d’essai de 600 s avec des expirations réseau de segments. Aucun fichier complet n’est validé.
+
+L’essai de la vraie file sur PC a également révélé un cas distinct : une référence d’épisode peut être un lien de lecteur connu accompagné du fragment `players`, qui conserve les lecteurs alternatifs. Le chemin rapide sautait alors la recette et perdait ces alternatives. La recette sélectionnée développe maintenant toute référence avec fragment avant le choix d’un extracteur ; une régression couvre explicitement un lien Sibnet avec `players`. Les 16 tests ciblés de file native, parcours d’épisode et flux importés passent après cette correction.
+
+Les reçus physiques et ces limites restent distincts des tests synthétiques. Aucun changement de proxy ni nouvelle release n’a été effectué.
