@@ -21,6 +21,20 @@ import uy.kohesive.injekt.api.*
 
 @RunWith(AndroidJUnit4::class)
 class NetworkGatewayTest {
+    @Test fun aggregate_deadline_is_a_timeout_and_explicit_cancel_remains_cancelled() = kotlinx.coroutines.runBlocking {
+        val failure = runCatching {
+            kotlinx.coroutines.withTimeout(10) { kotlinx.coroutines.delay(1_000) }
+        }.exceptionOrNull()!!
+        assertEquals("extension_runtime_timeout", com.animan.extensions.ExtensionOperationPolicy.failureCode(failure))
+        assertEquals("cancelled", com.animan.extensions.ExtensionOperationPolicy.failureCode(kotlinx.coroutines.CancellationException("user")))
+        for (operation in listOf("search", "detail", "hosters", "videos", "resolve_video", "preferences")) {
+            val worker = com.animan.extensions.ExtensionOperationPolicy.workerTimeoutMillis(operation)
+            val parent = com.animan.extensions.ExtensionOperationPolicy.parentTimeoutMillis(operation)
+            assertTrue(worker < parent && parent <= 180_000)
+        }
+        assertTrue(com.animan.extensions.ExtensionOperationPolicy.workerTimeoutMillis("hosters") >
+            com.animan.extensions.ExtensionOperationPolicy.workerTimeoutMillis("preferences"))
+    }
     @Test fun source_scripts_keep_their_origin_without_overriding_extension_headers_or_other_hosts() {
         val requests=mutableListOf<JSONObject>()
         val before=NetworkHelper.gateway

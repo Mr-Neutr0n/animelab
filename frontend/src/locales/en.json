@@ -1156,5 +1156,6 @@
   "Réglages de {0}": "Settings for {0}",
   "Installer ou activer {0}": "Install or enable {0}",
   "Désactiver {0}": "Disable {0}",
-  "Catalogues de {0}": "Catalogues for {0}"
+  "Catalogues de {0}": "Catalogues for {0}",
+  "L’extension a dépassé le délai autorisé pour cette opération.": "The extension exceeded the time limit for this operation."
 }

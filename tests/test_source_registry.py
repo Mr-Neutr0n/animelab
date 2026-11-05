@@ -85,7 +85,7 @@ def test_explicit_apk_identity_wins_over_another_provider_on_the_same_domain():
 @pytest.mark.asyncio
 @pytest.mark.parametrize('selection', ['specific', 'all'])
 @pytest.mark.parametrize('runtime,delay,succeeds', [('android-apk', .2, True),
-    ('recipe', .2, False), ('android-apk', 1, False)])
+    ('recipe', .2, False), ('android-apk', 2, False)])
 async def test_apk_search_can_finish_season_expansion_and_still_has_a_deadline(monkeypatch,selection,runtime,delay,succeeds):
     source=provider('fixture')
     source.pkg='fixture.extension'
@@ -113,3 +113,19 @@ async def test_apk_search_can_finish_season_expansion_and_still_has_a_deadline(m
     assert bool(result['results']) is succeeds
     assert bool(result['errors']) is not succeeds
     assert cancelled is not succeeds
+
+
+@pytest.mark.asyncio
+async def test_native_search_keeps_timeout_code_without_calling_it_a_site_challenge(monkeypatch):
+    apk = provider('fixture')
+    apk.pkg = 'fixture.extension'
+    apk.source_id = 'aniyomi:1152921504606846977'
+    apk.runtime = 'android-apk'
+    apk.supports_latest = True
+    apk.search_anime = AsyncMock(side_effect=APIProblem('extension_runtime_timeout',status=504,category='internal'))
+    registry = SourceRegistry(natives={},extensions=SimpleNamespace(get_enabled_container_sources=lambda:[apk],get_container_source_by_id=lambda sid:apk))
+    monkeypatch.setattr(router,'source_registry',registry)
+    result = await router.search_api('series',apk.source_id,True)
+    assert result['challenges'] == []
+    assert result['errors'][0]['code'] == 'extension_runtime_timeout'
+    assert result['errors'][0]['message'] == 'L’extension a dépassé le délai autorisé pour cette opération.'

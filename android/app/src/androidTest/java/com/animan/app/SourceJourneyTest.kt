@@ -56,7 +56,7 @@ class SourceJourneyTest {
             while (!EngineHost.ready && EngineHost.error == null && System.nanoTime() < deadline) Thread.sleep(250)
             assertNull(EngineHost.error); assertTrue(EngineHost.ready)
             StorageAccess.useDownloads()
-            for ((suffix, query) in listOf("animesama" to "Bleach", "voiranime" to "One Piece")) {
+            for ((suffix, query) in listOf("animesama" to "Bleach", "voiranime" to (arguments.getString("voiranime_query") ?: "Frieren"))) {
                 val pkg = "eu.kanade.tachiyomi.animeextension.fr.$suffix"
                 val row = JSONObject().put("package", pkg)
                 var phase = "inventory"
@@ -74,10 +74,15 @@ class SourceJourneyTest {
                     val search = request("/api/search?q=${encoded(query)}&source=${encoded(source)}&include_challenges=true")
                     val results = search.getJSONArray("results")
                     row.put("searchResults", results.length())
-                    check(results.length() > 0) { "empty_search" }
+                    if (results.length() == 0) {
+                        val reason = search.optJSONArray("challenges")?.optJSONObject(0)
+                            ?: search.optJSONArray("errors")?.optJSONObject(0)
+                        throw TrialFailure(reason?.optString("code")?.takeIf { it.isNotBlank() } ?: "empty_search",
+                            reason?.optString("domain").orEmpty())
+                    }
                     // Prefer season one or VF when those variants are returned.
                     val titles = (0 until results.length()).map { results.getJSONObject(it) }
-                    val selected = titles.firstOrNull { it.getString("title").equals("One Piece (VF)", true) } ?: titles.firstOrNull { if (suffix == "animesama") it.getString("title").endsWith("Saison 1") else it.getString("title").contains("(VF)") } ?: titles.first()
+                    val selected = titles.firstOrNull { it.getString("title").equals("$query (VF)", true) } ?: titles.firstOrNull { if (suffix == "animesama") it.getString("title").endsWith("Saison 1") else it.getString("title").contains("(VF)") } ?: titles.first()
                     phase = "detail"
                     val url = selected.getString("url")
                     val detail = request("/api/anime/detail?url=${encoded(url)}&source=${encoded(source)}")

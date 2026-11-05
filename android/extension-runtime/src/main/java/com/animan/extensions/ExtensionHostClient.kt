@@ -11,7 +11,7 @@ import java.util.concurrent.*
 
 /** Parent-side deadlines remain effective even if extension code blocks a Binder thread. */
 class ExtensionHostClient(value: Context, private val gateway: IExtensionHttp?=null,
-                          private val timeoutMillis: Long=55_000) : AutoCloseable {
+                          private val timeoutMillis: Long?=null) : AutoCloseable {
     private val context=value.applicationContext
     private val main=Handler(Looper.getMainLooper())
     @Volatile private var worker: IExtensionRuntime?=null
@@ -42,11 +42,11 @@ class ExtensionHostClient(value: Context, private val gateway: IExtensionHttp?=n
         }
         throw IllegalStateException("Extension worker did not bind")
     }
-    private fun call(action: (IExtensionRuntime)->String): String {
+    private fun call(deadlineMillis: Long=timeoutMillis ?: 55_000, action: (IExtensionRuntime)->String): String {
         if(closed) return "{\"ok\":false,\"code\":\"extension_runtime_unavailable\"}"
         val future=try { calls.submit<String> { action(runtime()) } }
             catch (_: RejectedExecutionException) { return "{\"ok\":false,\"code\":\"extension_runtime_busy\"}" }
-        return try { future.get(timeoutMillis,TimeUnit.MILLISECONDS) }
+        return try { future.get(deadlineMillis,TimeUnit.MILLISECONDS) }
         catch (_: TimeoutException) {
             future.cancel(true)
             try { worker?.terminate() } catch (_: Exception) { }
@@ -56,7 +56,8 @@ class ExtensionHostClient(value: Context, private val gateway: IExtensionHttp?=n
     fun discover(): String=call { it.discover() }
     fun invoke(payload: String): String {
         require(payload.length<=256_000)
-        val result=call { it.invoke(payload) }
+        val deadline = timeoutMillis ?: ExtensionOperationPolicy.parentTimeoutMillis(org.json.JSONObject(payload).optString("operation"))
+        val result=call(deadline) { it.invoke(payload) }
         if(org.json.JSONObject(payload).optString("operation")=="revoke" && org.json.JSONObject(result).optBoolean("ok")) {
             // Revocation must also stop non-cooperative code. Other in-flight
             // source calls can retry on the fresh worker; the Python owner lives.
