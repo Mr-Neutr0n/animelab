@@ -62,3 +62,12 @@ Le premier essai a révélé l’absence de vérification/reprise dans le lecteu
 Validation locale du moteur : 1 127 tests réussis, 5 ignorés. Interface : 110 scénarios couverts, dont un relancé après un dépassement de délai en exécution parallèle ; puis 40 tests unitaires et 6 tests navigateur ciblés réussis après l’ajout de la reprise du lecteur et la compaction des sources. La CI Android 29/30/35 du commit `5ed222a` est réussie.
 
 Aucune rotation de proxy ni publication de release n’est nécessaire à ces vérifications.
+
+
+## File de téléchargement native : défaut reproduit puis corrigé
+
+La réception physique du commit `171c476` a trouvé 14 résultats et 366 épisodes Anime-sama, puis résolu le flux. La tâche a ensuite échoué à 0 octet : la file utilisait encore `resolve_imported_video_stream` au lieu de `AndroidAPKSource.resolve_candidate`. Le registre supprimait aussi le fragment de l’URL d’épisode avant le rappel de l’extension, ce qui pouvait perdre son identité ou sa référence interne.
+
+Le chemin effectif de transfert conserve désormais l’URL complète, les candidats natifs et leurs données internes, et appelle le résolveur de l’APK. Il transmet les en-têtes et pistes au moteur de transfert. Les recettes desktop conservent elles aussi leur fragment d’épisode. Une source APK indisponible ne se replie pas sur un extracteur générique.
+
+La régression exécute la vraie file, le téléchargement HTTP via un transport contrôlé et la vérification FFprobe d’un MP4 synthétique. Elle couvre les numéros 0 et 7, deux vidéos partageant la même URL opaque mais des données internes différentes, les en-têtes nécessaires et l’absence de copie finale en double. Elle n’est pas une preuve de téléchargement d’un épisode réel : cette réception doit être ajoutée dans la PR après essai du nouvel APK.
