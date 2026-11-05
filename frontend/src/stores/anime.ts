@@ -19,6 +19,8 @@ export const useAnimeStore = defineStore('anime', () => {
     [],
   )
   let searchSequence = 0
+  let detailSequence = 0
+  const detailChallenges = ref<SourceChallenge[]>([])
 
   async function fetchHomeFeed(force = false) {
     if (homeFeed.value && !force) return
@@ -92,28 +94,46 @@ export const useAnimeStore = defineStore('anime', () => {
   }
 
   async function fetchAnimeDetail(url: string, source: string = 'french-manga') {
+    const sequence = ++detailSequence
+    const verification = useVerificationStore()
+    verification.clearPending('anime-detail')
+    detailChallenges.value = []
+    currentDetail.value = null
     isDetailLoading.value = true
     error.value = null
     try {
       const res = await api.getAnimeDetail(url, source)
+      if (sequence !== detailSequence) return
       currentDetail.value = res
       return res
     } catch (err: any) {
+      if (sequence !== detailSequence) return
+      const challenge = challengeFromError(err)
+      if (challenge) {
+        detailChallenges.value = [challenge]
+        verification.waitForVerification('anime-detail', [challenge], async () => {
+          if (sequence === detailSequence) await fetchAnimeDetail(url, source)
+        })
+      }
       error.value = err.message || "Impossible de charger la fiche de l'animé"
       console.error('[useAnimeStore] fetchAnimeDetail error:', err)
-      throw err
     } finally {
-      isDetailLoading.value = false
+      if (sequence === detailSequence) isDetailLoading.value = false
     }
   }
 
   function clearDetail() {
+    detailSequence++
+    useVerificationStore().clearPending('anime-detail')
+    detailChallenges.value = []
+    isDetailLoading.value = false
     currentDetail.value = null
   }
 
   return {
     homeFeed,
     currentDetail,
+    detailChallenges,
     searchResults,
     searchQuery,
     selectedSource,

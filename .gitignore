@@ -111,3 +111,19 @@ artifacts/launcher-ui/
 # Private multi-user server identities, source cookies and media
 shared-data/
 artifacts/shared-server/
+
+# Historical plans and architecture: retain local copies only
+/docs/architecture/
+/docs/studies/nm3u8dl-re/plantuml/
+/docs/studies/nm3u8dl-re/svg/
+/docs/android-embedded-roadmap.md
+/docs/repository-recommendations.md
+/docs/studies/aniyomi-anikku/PLAN_IMPLEMENTATION.md
+/docs/studies/nm3u8dl-re/PRIORITES_IMPLEMENTATION.md
+/docs/studies/nm3u8dl-re/README.md
+/docs/studies/nm3u8dl-re/dossier-nm3u8dl-re.zip
+/docs/studies/nm3u8dl-re/index.html
+/docs/studies/nm3u8dl-re/manifest.json
+/docs/studies/nm3u8dl-re/render.py
+/docs/tauri-rust-feasibility.md
+/scripts/render_architecture.py

@@ -594,9 +594,10 @@ class DownloadManagerService:
                     from animelab.services.extension_service import extension_service
                     if source and source not in ("french-manga", "voir-anime", "animepahe"):
                         matched_container = extension_service.get_container_source_by_id(source)
-                    if not matched_container and u_host:
+                    if not matched_container and not source and u_host:
                         for cs in extension_service.get_enabled_container_sources():
-                            if cs.base_url and u_host in cs.base_url.lower():
+                            source_host = (urlparse(cs.base_url).hostname or '').lower()
+                            if source_host and (u_host == source_host or u_host.endswith('.' + source_host)):
                                 matched_container = cs
                                 break
                 except VerificationRequired:
@@ -615,7 +616,8 @@ class DownloadManagerService:
                     avail_servers = []
                     qualities = {}
                     video_sources = []
-                    if matched_container and not is_known_embed:
+                    target = None
+                    if matched_container and (not is_known_embed or parsed_u.fragment or getattr(matched_container, 'runtime', '') == 'android-apk'):
                         try:
                             video_sources = await matched_container.get_episode_sources(download_page_url)
                         except VerificationRequired:
@@ -631,43 +633,27 @@ class DownloadManagerService:
                                     avail_servers.append(s_name)
                                 qualities[s_name or "Serveur"] = vs.get("url", "")
 
-                        target = None
-                        if preferred_server and preferred_server != "auto":
-                            for s in video_sources:
-                                s_srv = s.get("server") or s.get("name") or ""
-                                if preferred_server.lower() in s_srv.lower():
-                                    target = s
-                                    break
-                        if not target and preferred_quality and preferred_quality != "auto":
-                            for s in video_sources:
-                                q_name = s.get("quality") or s.get("server") or ""
-                                if preferred_quality.lower() in q_name.lower():
-                                    target = s
-                                    break
-                        if not target and video_sources:
+                        from animelab.services.extension_media import prioritize_candidates
+                        video_sources = prioritize_candidates(video_sources, preferred_server, preferred_quality)
+                        if video_sources:
                             target = video_sources[0]
                         if target and target.get("url"):
                             target_url = target.get("url", "")
 
                     # Résolution du flux direct via resolve_imported_video_stream avec repli
                     resolved = None
-                    candidate_urls = []
-                    if target and target.get("url"):
-                        candidate_urls.append(target.get("url"))
-                    if video_sources:
-                        for s in video_sources:
-                            u_ = s.get("url")
-                            if u_ and u_ not in candidate_urls:
-                                candidate_urls.append(u_)
-
-                    for cand_u in (candidate_urls or [target_url]):
+                    # Two native Video objects can share an unresolved URL but
+                    # carry different quality/memo data. Do not collapse them.
+                    candidates = ([target] if target else []) + [row for row in video_sources if row is not target]
+                    if not candidates and getattr(matched_container, 'runtime', '') != 'android-apk':
+                        candidates = [{'url': target_url}]
+                    for candidate in candidates:
                         try:
-                            candidate = target if target and target.get('url') == cand_u else next((row for row in video_sources if row.get('url') == cand_u), {})
                             if matched_container and getattr(matched_container, 'runtime', '') == 'android-apk':
                                 cand_res = await matched_container.resolve_candidate(candidate)
                             else:
                                 cand_res = await self.resolve_imported_video_stream(
-                                    cand_u, preferred_quality=preferred_quality
+                                    candidate['url'], referer=download_page_url, preferred_quality=preferred_quality
                                 )
                             if cand_res and cand_res.get("videoUrl"):
                                 resolved = merge_stream_metadata(cand_res, candidate, download_page_url)
@@ -802,9 +788,9 @@ class DownloadManagerService:
                 # Si la taille n'est pas encore déterminée
                 if info.size <= 0 and info.direct_url:
                     if ".m3u8" in info.direct_url.lower() or info.server_type == "myTV":
-                        info.size = await self.estimate_hls_size(info.direct_url, server_type=info.server_type)
+                        info.size = await self.estimate_hls_size(info.direct_url, headers=info.headers, server_type=info.server_type)
                     else:
-                        info.size = await self.get_remote_file_size(info.direct_url, server_type=info.server_type)
+                        info.size = await self.get_remote_file_size(info.direct_url, headers=info.headers, server_type=info.server_type)
 
                 info.formatted_size = format_bytes(info.size) if info.size > 0 else "Taille inconnue"
 

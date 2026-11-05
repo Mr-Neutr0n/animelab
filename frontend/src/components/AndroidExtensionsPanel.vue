@@ -34,19 +34,28 @@
     <p v-if="error" role="alert" class="error">{{ error }}</p>
     <p v-if="busy" role="status">{{ tx('Opération en cours…') }}</p>
     <p v-if="!state.packages.length">{{ tx('Aucune extension anime installée dans Android.') }}</p>
-    <article v-for="extension in state.packages" :key="extension.pkg" class="apk-item">
-      <h3>{{ extension.name }}</h3>
-      <p>{{ extension.pkg }}</p>
-      <p>v{{ extension.version }} · API {{ extension.api }} · {{ tx(status(extension.state)) }}</p>
-      <p v-if="extension.error" role="alert">
-        {{ tx('Le chargement a échoué :') }} {{ extension.error }}
-      </p>
-      <details>
-        <summary>{{ tx('Identité du paquet') }}</summary>
-        <p>{{ tx('Code de version :') }} {{ extension.versionCode }}</p>
-        <p class="fingerprint">SHA-256 {{ extension.signer }}</p>
-      </details>
-      <div class="actions">
+    <article v-for="extension in filteredPackages" :key="extension.pkg" class="apk-item">
+      <header class="apk-identity">
+        <ExtensionAvatar
+          :name="extension.name"
+          :src="catalogueEntry(extension.pkg)?.icon_url || catalogueEntry(extension.pkg)?.iconUrl"
+        />
+        <div class="apk-title">
+          <h3>{{ extension.name }}</h3>
+          <p>
+            {{ extension.sources.map((source) => source.lang.toUpperCase()).join(' · ') || 'APK' }}
+            · {{ extension.version }}
+            <span class="apk-state">{{ tx(status(extension.state)) }}</span>
+          </p>
+        </div>
+        <button
+          v-if="catalogueEntry(extension.pkg)?.has_update"
+          class="btn btn-primary"
+          :disabled="busy"
+          @click="run(() => api.updateExtension(catalogueEntry(extension.pkg)!.id))"
+        >
+          {{ tx('Mettre à jour') }}
+        </button>
         <button
           v-if="!extension.trusted"
           class="btn btn-primary"
@@ -55,62 +64,85 @@
         >
           {{ tx('Approuver cet APK') }}
         </button>
+      </header>
+      <p v-if="extension.error" role="alert">
+        {{ tx('Le chargement a échoué :') }} {{ extension.error }}
+      </p>
+      <p
+        v-if="catalogueEntry(extension.pkg)?.catalog_state === 'retired'"
+        class="apk-retired"
+        role="status"
+      >
+        {{ tx('Retirée du dépôt : cette extension peut ne plus fonctionner.') }}
+      </p>
+      <details class="apk-details">
+        <summary>
+          {{ tx('Informations et réglages') }} · {{ extension.sources.length }}
+          {{ tx('source(s)') }}
+        </summary>
         <button
-          v-else
+          v-if="extension.trusted"
           class="btn btn-secondary"
           :disabled="busy"
           @click="run(() => api.revokeAndroidExtension(extension.pkg))"
         >
           {{ tx('Révoquer la confiance') }}
         </button>
+        <p>{{ extension.pkg }}</p>
+        <p>{{ tx('Code de version :') }} {{ extension.versionCode }} · API {{ extension.api }}</p>
+        <p class="fingerprint">SHA-256 {{ extension.signer }}</p>
         <button class="btn btn-secondary" :disabled="busy" @click="uninstall(extension)">
           {{ tx('Désinstaller le paquet partagé') }}
         </button>
-      </div>
-      <ul>
-        <li v-for="source in extension.sources" :key="source.id">
-          <strong>{{ source.name }}</strong> · {{ source.lang }}
-          <label>
-            <input
-              type="checkbox"
-              :checked="source.enabled !== false"
-              :disabled="busy"
-              @change="
-                run(() =>
-                  api.androidSource(`aniyomi:${source.id}`, 'state', {
-                    enabled: ($event.target as HTMLInputElement).checked,
-                  }),
-                )
-              "
-            />
-            {{ tx('Activer cette source') }}
-          </label>
-          <div class="actions">
-            <RouterLink
-              class="btn btn-secondary"
-              :to="{ name: 'sources', params: { sourceId: `aniyomi:${source.id}` } }"
-              >{{ tx('Ouvrir la source') }}</RouterLink
-            >
-            <button
-              v-if="source.configurable"
-              class="btn btn-secondary"
-              :disabled="busy"
-              @click="editPreferences(source)"
-            >
-              {{ tx('Préférences de la source') }}
-            </button>
-            <button
-              v-if="!source.aliases?.includes(extension.pkg)"
-              class="btn btn-secondary"
-              :disabled="busy"
-              @click="run(() => api.setExtensionSourceAlias(extension.pkg, `aniyomi:${source.id}`))"
-            >
-              {{ tx('Utiliser pour les anciennes références de ce paquet') }}
-            </button>
-            <span v-else>{{ tx('Source choisie pour les anciennes références du paquet') }}</span>
-          </div>
-        </li>
-      </ul>
+        <ul class="apk-source-list">
+          <li v-for="source in extension.sources" :key="source.id">
+            <div class="apk-source-heading">
+              <strong>{{ source.name }}</strong>
+              <label
+                ><input
+                  type="checkbox"
+                  :checked="source.enabled !== false"
+                  :disabled="busy"
+                  @change="
+                    run(() =>
+                      api.androidSource(`aniyomi:${source.id}`, 'state', {
+                        enabled: ($event.target as HTMLInputElement).checked,
+                      }),
+                    )
+                  "
+                />
+                {{ tx('Activer cette source') }}</label
+              >
+            </div>
+            <div class="actions">
+              <RouterLink
+                class="btn btn-secondary"
+                :to="{ name: 'sources', params: { sourceId: `aniyomi:${source.id}` } }"
+                >{{ tx('Ouvrir la source') }}</RouterLink
+              >
+              <button
+                v-if="source.configurable"
+                class="btn btn-secondary"
+                :disabled="busy"
+                @click="editPreferences(source)"
+              >
+                {{ tx('Préférences de la source') }}
+              </button>
+              <button
+                v-if="!source.aliases?.includes(extension.pkg)"
+                class="btn btn-secondary"
+                :disabled="busy"
+                @click="
+                  run(() => api.setExtensionSourceAlias(extension.pkg, `aniyomi:${source.id}`))
+                "
+              >
+                {{ tx('Utiliser pour les anciennes références de ce paquet') }}
+              </button>
+              <span v-else>{{ tx('Source choisie pour les anciennes références du paquet') }}</span>
+            </div>
+          </li>
+        </ul>
+      </details>
     </article>
     <section v-if="editing" class="preferences" :aria-label="tx('Préférences de la source')">
       <h3>{{ editing.name }}</h3>
@@ -119,6 +151,7 @@
           <h4 v-if="preference.type === 'group'">{{ preference.title }}</h4>
           <label v-else>
             {{ preference.title }}
+            <small v-if="preference.summary">{{ preference.summary }}</small>
             <input
               v-if="preference.type === 'boolean'"
               v-model="values[preference.key!]"
@@ -177,9 +210,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { api } from '@/api/client'
 import { tx } from '@/utils/locale'
+import ExtensionAvatar from '@/components/ExtensionAvatar.vue'
+import type { ExtensionSource } from '@/types'
 import type {
   AndroidExtensionState,
   NativeExtension,
@@ -187,6 +222,21 @@ import type {
   NativeSource,
 } from '@/types/extensions'
 
+const props = withDefaults(defineProps<{ query?: string; catalogue?: ExtensionSource[] }>(), {
+  query: '',
+  catalogue: () => [],
+})
+const catalogueEntry = (pkg: string) => props.catalogue.find((entry) => entry.pkg === pkg)
+const installedPackages = computed(() => state.value?.packages?.map((item) => item.pkg) || [])
+const filteredPackages = computed(() =>
+  (state.value?.packages || [])
+    .filter((item) =>
+      `${item.name} ${item.pkg} ${item.sources.map((source) => source.lang).join(' ')}`
+        .toLocaleLowerCase()
+        .includes(props.query.trim().toLocaleLowerCase()),
+    )
+    .sort((a, b) => a.name.localeCompare(b.name)),
+)
 const emit = defineEmits<{ changed: [] }>()
 const state = ref<AndroidExtensionState | null>(null)
 const busy = ref(false)
@@ -277,12 +327,15 @@ async function importFile(event: Event) {
 }
 async function editPreferences(source: NativeSource) {
   await run(async () => {
+    editing.value = null
     preferences.value = (await api.androidSource(`aniyomi:${source.id}`, 'preferences')).result
     values.value = Object.fromEntries(
       preferences.value.filter((p) => p.key).map((p) => [p.key!, p.value ?? '']),
     )
     changed.clear()
     editing.value = source
+    await nextTick()
+    document.querySelector('.preferences')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   })
 }
 async function savePreferences() {
@@ -309,7 +362,7 @@ onMounted(async () => {
   }, 4000)
 })
 onUnmounted(() => clearInterval(timer))
-defineExpose({ reload })
+defineExpose({ reload, installedPackages })
 </script>
 
 <style scoped>
@@ -350,5 +403,89 @@ header,
 }
 .error {
   color: #f87171;
+}
+</style>
+
+<style scoped>
+.apk-panel {
+  border: 0;
+  padding: 0;
+}
+.apk-panel > p {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.apk-item {
+  border-color: var(--line);
+  padding: 1rem 0.5rem;
+}
+.apk-identity {
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+}
+.apk-title {
+  flex: 1;
+  min-width: 0;
+}
+.apk-title h3 {
+  margin: 0;
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+.apk-title p {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin: 0.4rem 0;
+}
+.apk-state {
+  color: var(--accent);
+  margin-left: 0.5rem;
+}
+.apk-details > summary {
+  cursor: pointer;
+  color: var(--muted);
+  padding: 0.8rem 0 0;
+  font-size: 0.85rem;
+}
+.apk-source-list {
+  list-style: none;
+  padding: 0;
+}
+.apk-source-list li {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: var(--panel);
+  border-radius: 12px;
+}
+.apk-source-heading {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.preferences {
+  padding: 1.25rem;
+  background: var(--panel);
+  border-radius: 16px;
+  border-color: var(--line);
+  scroll-margin: 5rem;
+}
+.preferences input:not([type='checkbox']),
+.preferences select {
+  width: 100%;
+  min-height: 44px;
+  background: var(--input-bg, var(--panel));
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.6rem;
+}
+@media (max-width: 600px) {
+  .apk-identity {
+    flex-wrap: wrap;
+  }
+  .apk-identity > button {
+    margin-left: 60px;
+  }
 }
 </style>

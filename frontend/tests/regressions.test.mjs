@@ -105,6 +105,7 @@ const episodeUtilsUrl = await moduleUrl('../src/utils/episodes.ts')
 const { episodeKey, episodeFileName } = await import(episodeUtilsUrl)
 const { usePlayerStore } = await import(
   await moduleUrl('../src/stores/player.ts', {
+    './verification': `data:text/javascript;base64,${Buffer.from('export const useVerificationStore=()=>({clearPending(){},waitForVerification(){}}); export const challengeFromError=()=>null;').toString('base64')}`,
     '@/api/client': apiUrl,
     '@/utils/episodes': episodeUtilsUrl,
     vue: import.meta.resolve('vue'),
@@ -194,7 +195,7 @@ test('the actual detail view queues only the checked VF episode', async () => {
       '@/stores/notifications': inline('export const useNotifications=()=>({notify:()=>{}});'),
       '@/stores/searchContext': inline('export const useSearchContext=()=>({restore:()=>{}});'),
       vue: inline(
-        `export {ref,computed} from '${import.meta.resolve('vue')}'; export const onMounted=()=>{}; export const watch=()=>{};`,
+        `export {ref,computed} from '${import.meta.resolve('vue')}'; export const onMounted=()=>{}; export const onUnmounted=()=>{}; export const watch=()=>{};`,
       ),
       'vue-router': inline(
         `export const useRouter=()=>({push:()=>{}}); export const useRoute=()=>({query:{}});`,

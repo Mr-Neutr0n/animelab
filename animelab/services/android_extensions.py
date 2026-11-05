@@ -2,6 +2,7 @@
 import asyncio
 import hashlib
 import json
+import re
 import uuid
 from urllib.parse import urljoin
 
@@ -102,6 +103,11 @@ class AndroidAPKSource:
     """A real source instance enumerated by the original APK's factory."""
     runtime = 'android-apk'
 
+    @staticmethod
+    def _version(*values):
+        match = re.search(r'(?<![a-z])(vostfr|vf|vost|vo)(?![a-z])', ' '.join(str(value or '') for value in values), re.I)
+        return match.group(1).upper() if match else ''
+
     def __init__(self, package, metadata, *, db_path=None):
         self.pkg = package['pkg']
         self.native_id = str(metadata['id'])
@@ -171,6 +177,7 @@ class AndroidAPKSource:
     async def get_anime_detail(self, url):
         result = await self.call('detail', self._input('anime',url,{'url': url, 'title': url}))
         item = result['anime']
+        version = self._version(item.get('title'), item.get('url'))
         episodes = []
         references = []
         for index, row in enumerate(result['episodes'], 1):
@@ -181,6 +188,7 @@ class AndroidAPKSource:
             # queue numbering remains an integer display/order field.
             episodes.append(Episode(number=int(number) if number >= 0 and float(number).is_integer() else index,
                                     title=row['name'], playerUrl=absolute, downloadPageUrl=absolute,
+                                    version=self._version(row['name'], row['url'], row.get('scanlator')) or version,
                                     synopsis=row.get('summary'), thumbnailUrl=row.get('preview_url'), nativeMetadata=public_metadata(row)))
         if self._references is not None:
             self._references.remember_many([('anime',url,item),*references])
@@ -189,7 +197,8 @@ class AndroidAPKSource:
         if len(self._episodes) > 5000:
             self._episodes = {absolute:row for _,absolute,row in references}
         return AnimeDetail(title=item['title'], synopsis=item.get('description'), imageUrl=item.get('thumbnail_url') or '',
-                           bannerUrl=item.get('background_url'), url=url, source=self.source_id, episodes=episodes,
+                           bannerUrl=item.get('background_url'), url=url, source=self.source_id, episodes=episodes, version=version,
+                           studio=item.get('author') or item.get('artist'),
                            genres=[s.strip() for s in (item.get('genre') or '').split(',') if s.strip()], nativeMetadata=public_metadata(item))
 
     async def get_episode_sources(self, play_url):

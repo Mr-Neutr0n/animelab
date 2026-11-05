@@ -291,3 +291,112 @@ test('catalogue requests preserve tags and the pagination cursor', async () => {
     globalThis.fetch = previous
   }
 })
+
+test('slow detail responses and responses after leaving cannot replace the current series', async (t) => {
+  mockApi(t)
+  const previous = api.getAnimeDetail
+  t.after(() => {
+    api.getAnimeDetail = previous
+  })
+  const complete = new Map()
+  api.getAnimeDetail = (url) => new Promise((resolve) => complete.set(url, resolve))
+  const store = useAnimeStore()
+  const old = store.fetchAnimeDetail('old', 'aniyomi:1')
+  const latest = store.fetchAnimeDetail('new', 'aniyomi:2')
+  complete.get('new')({ anime: { title: 'New' } })
+  await latest
+  complete.get('old')({ anime: { title: 'Old' } })
+  await old
+  assert.equal(store.currentDetail.anime.title, 'New')
+  const abandoned = store.fetchAnimeDetail('abandoned', 'aniyomi:1')
+  store.clearDetail()
+  complete.get('abandoned')({ anime: { title: 'Abandoned' } })
+  await abandoned
+  assert.equal(store.currentDetail, null)
+  assert.equal(store.isDetailLoading, false)
+})
+
+test('a detail challenge resumes the extension after verification and is cancelled on leaving', async (t) => {
+  mockApi(t)
+  const previous = api.getAnimeDetail
+  t.after(() => {
+    api.getAnimeDetail = previous
+  })
+  let calls = 0
+  api.getAnimeDetail = async () => {
+    if (++calls === 1)
+      throw new ApiError('Verification needed', 409, {
+        code: 'verification_required',
+        domain: 'source.example',
+        url: 'https://source.example/series',
+      })
+    return { anime: { title: 'Resumed series' } }
+  }
+  const store = useAnimeStore(),
+    verification = useVerificationStore()
+  await store.fetchAnimeDetail('https://source.example/series', 'aniyomi:1')
+  assert.equal(store.detailChallenges.length, 1)
+  await verification.start('source.example')
+  await verification.complete()
+  assert.equal(store.currentDetail.anime.title, 'Resumed series')
+  assert.equal(store.detailChallenges.length, 0)
+  store.clearDetail()
+})
+
+test('video resolution resumes after verification and never revives a closed player', async (t) => {
+  mockApi(t)
+  const originals = [api.resolveVideoStream, api.openPlaybackSession, api.savePlaybackCheckpoint]
+  t.after(() => {
+    ;[api.resolveVideoStream, api.openPlaybackSession, api.savePlaybackCheckpoint] = originals
+  })
+  api.openPlaybackSession = async () => ({
+    sessionId: 'fixture',
+    positionSeconds: 0,
+    selection: { quality: 'auto', server: 'auto', audio: null },
+  })
+  api.savePlaybackCheckpoint = async () => ({})
+  let calls = 0,
+    blocked = true
+  api.resolveVideoStream = async () => {
+    calls++
+    if (blocked)
+      throw new ApiError('Verification needed', 409, {
+        code: 'verification_required',
+        domain: 'video.example',
+        url: 'https://video.example/embed',
+      })
+    return { streamUrl: '/api/media/extension-resource/fixture', subtitles: [] }
+  }
+  const { usePlayerStore } = await import(
+    await moduleUrl('../src/stores/player.ts', {
+      ...shared,
+      './verification': verificationUrl,
+      '@/utils/episodes': await moduleUrl('../src/utils/episodes.ts'),
+    })
+  )
+  const player = usePlayerStore(),
+    verification = useVerificationStore()
+  const episode = {
+    number: 1,
+    title: 'Episode 1',
+    version: 'VF',
+    playerUrl: 'https://source.example/episode',
+  }
+  await player.openPlayer('Series', 'https://source.example/series', 'aniyomi:1', episode, [
+    episode,
+  ])
+  assert.equal(player.challenges.length, 1)
+  blocked = false
+  await verification.start('video.example')
+  await verification.complete()
+  assert.equal(player.videoUrl, '/api/media/extension-resource/fixture')
+  blocked = true
+  await player.resolveStream()
+  const before = calls
+  player.closePlayer()
+  await verification.start('video.example')
+  await verification.complete()
+  assert.equal(calls, before)
+  assert.equal(player.videoUrl, null)
+  assert.equal(player.challenges.length, 0)
+})

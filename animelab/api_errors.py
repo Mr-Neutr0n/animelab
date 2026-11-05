@@ -48,7 +48,7 @@ class APIProblem(RuntimeError):
             'extension_untrusted': 'Approuvez la version et le signataire de cet APK avant son exécution.',
             'extension_abi_incompatible': 'Les classes ou bibliothèques de cet APK sont incompatibles avec le moteur actuel.',
             'extension_runtime_unavailable': 'Le moteur APK est indisponible. Réessayez son chargement.',
-            'extension_runtime_timeout': 'L’extension a dépassé le délai autorisé. Son worker a été arrêté.',
+            'extension_runtime_timeout': 'L’extension a dépassé le délai autorisé pour cette opération.',
             'extension_runtime_busy': 'Le moteur APK est occupé. Attendez la fin des appels en cours.',
             'extension_runtime_error': 'Le code de l’extension a échoué pendant cette opération.',
             'cancelled': 'L’opération de l’extension a été annulée.',

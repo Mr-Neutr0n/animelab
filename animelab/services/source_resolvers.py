@@ -8,6 +8,7 @@ import shutil
 from urllib.parse import urlparse
 
 from animelab.services.source_http import VerificationRequired
+from animelab.api_errors import APIProblem
 from animelab.services.extractors import extractor_registry
 from animelab.services.scraping_service import scraping_service
 from animelab.services.voiranime_service import voiranime_service
@@ -25,80 +26,64 @@ async def resolve_imported(ctx, task, direct_url, skip_local):
         from animelab.services.extension_service import extension_service
         if task.source and task.source not in ("french-manga", "voir-anime", "animepahe"):
             matched_container = extension_service.get_container_source_by_id(task.source)
-        if not matched_container and u_host:
+        if not matched_container and not task.source and u_host:
             for cs in extension_service.get_enabled_container_sources():
-                if cs.base_url and u_host in cs.base_url.lower():
+                source_host = (urlparse(cs.base_url).hostname or "").lower()
+                if source_host and (u_host == source_host or u_host.endswith("." + source_host)):
                     matched_container = cs
                     break
-    except VerificationRequired:
+    except (VerificationRequired, APIProblem):
         raise
     except Exception:
         pass
 
-    target_url = direct_url
+    if not matched_container and (task.source or '').startswith('aniyomi:'):
+        raise APIProblem('source_not_found', status=404, category='not_found')
+
+    native = getattr(matched_container, 'runtime', '') == 'android-apk'
+    target_url = task.fileUrl if native else direct_url
     video_sources = []
-    target = None
-    if matched_container and not is_known_embed:
-        video_sources = await matched_container.get_episode_sources(direct_url)
-        target = None
-        if task.selectedServer and task.selectedServer != "auto":
-            for s in video_sources:
-                s_srv = s.get("server") or s.get("name") or ""
-                if task.selectedServer.lower() in s_srv.lower():
-                    target = s
-                    break
-        if not target and task.selectedQuality and task.selectedQuality != "auto":
-            for s in video_sources:
-                q_name = s.get("quality") or s.get("server") or ""
-                if task.selectedQuality.lower() in q_name.lower():
-                    target = s
-                    break
-        if not target and video_sources:
-            target = video_sources[0]
-        if target and target.get("url"):
-            target_url = target.get("url", "")
-
+    # Recipes can attach all alternate players to a known embed in its fragment.
+    # Let the selected recipe expand that reference before choosing an extractor.
+    if matched_container and (native or not is_known_embed or urlparse(target_url).fragment):
+        video_sources = await matched_container.get_episode_sources(target_url)
+    from animelab.services.extension_media import prioritize_candidates
+    candidates = prioritize_candidates(video_sources, task.selectedServer, task.selectedQuality)
+    if not candidates and not native:
+        candidates = [{'url': target_url}]
     resolved = None
-    candidate_urls = []
-    if target and target.get("url"):
-        candidate_urls.append(target.get("url"))
-    if video_sources:
-        for vs in video_sources:
-            v_u = vs.get("url")
-            if v_u and v_u not in candidate_urls:
-                candidate_urls.append(v_u)
-
-    for cand_u in (candidate_urls or [target_url]):
+    failures = []
+    for candidate in candidates:
         try:
-            cand_res = await ctx.resolve_imported_video_stream(
-                cand_u, preferred_quality=task.selectedQuality
-            )
-            if cand_res and cand_res.get("videoUrl"):
-                candidate = target if target and target.get('url') == cand_u else next((row for row in video_sources if row.get("url") == cand_u), {})
-                resolved = merge_stream_metadata(cand_res, candidate, task.fileUrl)
+            if native:
+                result = await matched_container.resolve_candidate(candidate)
+            else:
+                result = await ctx.resolve_imported_video_stream(candidate.get('url') or target_url,
+                    referer=task.fileUrl, preferred_quality=task.selectedQuality)
+            if result and result.get('videoUrl'):
+                resolved = merge_stream_metadata(result, candidate, task.fileUrl)
                 break
         except VerificationRequired:
             raise
-        except Exception:
-            pass
-
-    if not resolved or not resolved.get("videoUrl"):
-        clean_t = target_url.split("#")[0].strip()
-        if re.search(r"\.(mp4|m3u8|webm|mkv)(\?.*)?$", clean_t, re.IGNORECASE):
-            resolved = {
-                "videoUrl": clean_t,
-                "serverType": "direct",
-                "selectedQuality": task.selectedQuality or "HD",
-            }
+        except Exception as failure:
+            failures.append(failure)
+    if not resolved or not resolved.get('videoUrl'):
+        if native:
+            if failures:
+                raise failures[0]
+            raise ValueError('Cette extension APK n’a renvoyé aucun flux vidéo pour cet épisode.')
+        clean_t = target_url.split('#')[0].strip()
+        if re.search(r'\.(mp4|m3u8|webm|mkv)(\?.*)?$', clean_t, re.IGNORECASE):
+            resolved = {'videoUrl': clean_t, 'serverType': 'direct', 'selectedQuality': task.selectedQuality or 'HD'}
         else:
             raise ValueError(f"Impossible de résoudre le flux vidéo de la source importée pour {task.fileName}")
 
-    resolved = merge_stream_metadata(resolved, target if not candidate_urls else None, task.fileUrl)
     task.requestHeaders = dict(resolved.get("headers") or {})
     task.mediaJson = json.dumps({**json.loads(task.mediaJson), **{key: resolved.get(key, default) for key, default in (("audioTracks", []), ("requirements", []))}})
     direct_url = resolved["videoUrl"]
     server_type = resolved.get("serverType", "imported")
     task.selectedServer = server_type
+    task.selectedQuality = resolved.get("selectedQuality") or task.selectedQuality
     task.directDownloadUrl = direct_url
     ctx._update_resolved_subtitles(task, resolved.get("subtitles", []), target_url)
     task.subtitleUrl = resolved.get("subtitleUrl") or task.subtitleUrl
@@ -232,7 +217,9 @@ class SourceResolverRegistry:
         return 'scraping' if ctx._needs_scraping_resolution(url) else 'direct'
 
     async def resolve(self, ctx, task, *, need_resolve, skip_local):
-        url = (task.fileUrl or '').split('#')[0].strip()
+        # Extension episode fragments can carry the source's identity/memo key.
+        # Strip only at the HTTP boundary, never before the APK/recipe callback.
+        url = (task.fileUrl or '').strip()
         cached_valid = (task.directDownloadUrl and not ctx._needs_scraping_resolution(task.directDownloadUrl)
                         and not re.search(r'vidzy\.[a-z]+/d/', task.directDownloadUrl))
         if cached_valid and not need_resolve:

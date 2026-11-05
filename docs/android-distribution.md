@@ -73,7 +73,7 @@ Python/native engine entries are identical to the normal signed deliverable.
 The test APK is 61.31 MB; the normal signed APK is 61.36 MB. Installed app and
 data after first render measured 97.37 MB versus 137.52 MB for the unoptimized
 control. These are clean-test-data snapshots, not the size of a personal library.
-See [A11 validation](architecture/a11-validation.md) for evidence and limits.
+Release manifests and CI results record build provenance and validation coverage.
 
 For a controlled comparison, `-Paniman.optimizeApk=false` disables stripping,
 asset deduplication and R8/resource shrinking. To also restore an older dependency

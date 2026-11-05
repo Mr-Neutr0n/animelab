@@ -1,6 +1,6 @@
 # P1–P5 — contrats, pistes, profils et supervision
 
-Livraison locale du 27 octobre 2026, suivant [l’ordre de réalisation](PRIORITES_IMPLEMENTATION.md). Les changements du moteur sont implémentés ; les limites et les validations par plateforme figurent ci-dessous. Aucun backend N_m3u8DL-RE ni nouveau traitement hardsub n’est activé dans ces lots.
+Livraison locale du 27 octobre 2026, suivant l’ordre de réalisation (document historique retiré). Les changements du moteur sont implémentés ; les limites et les validations par plateforme figurent ci-dessous. Aucun backend N_m3u8DL-RE ni nouveau traitement hardsub n’est activé dans ces lots.
 
 ## Ce qui est raccordé
 

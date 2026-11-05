@@ -3,13 +3,14 @@
     <template v-if="!sourceId">
       <header class="source-heading">
         <div>
-          <h1>Sources</h1>
+          <h1>{{ tx('Explorer') }}</h1>
           <p>{{ tx('Parcourez vos catalogues et les extensions installées.') }}</p>
         </div>
         <router-link to="/extensions" class="btn btn-secondary">{{
           tx('Gérer les extensions')
         }}</router-link>
       </header>
+      <ExplorerNavigation active="sources" />
       <input
         v-model="sourceQuery"
         class="input"
@@ -27,6 +28,36 @@
         <div v-if="group.sources.length" class="source-list">
           <article v-for="item in group.sources" :key="item.id" class="source-card">
             <div class="source-identity">
+              <ExtensionAvatar :name="item.name" />
+              <button
+                class="source-open"
+                :disabled="!item.isEnabled"
+                @click="openSource(item.id, defaultView(item))"
+              >
+                <h3>{{ tx(item.name) }}</h3>
+                <p>{{ tx(item.lang.toUpperCase()) }} · {{ tx(host(item.baseUrl)) }}</p>
+              </button>
+              <details v-if="item.isEnabled" class="source-view-menu">
+                <summary
+                  :aria-label="tx(`Catalogues de ${item.name}`)"
+                  :title="tx(`Catalogues de ${item.name}`)"
+                >
+                  <SlidersHorizontal :size="20" />
+                </summary>
+                <div class="source-card-actions">
+                  <button
+                    v-for="view in item.views"
+                    :key="view.id"
+                    class="btn btn-secondary"
+                    @click="openSource(item.id, view.id)"
+                  >
+                    {{ tx(view.label) }}
+                  </button>
+                </div>
+              </details>
+              <router-link v-else to="/extensions" class="source-enable">{{
+                tx('Activer')
+              }}</router-link>
               <button
                 type="button"
                 class="source-pin"
@@ -38,34 +69,9 @@
                 :aria-pressed="preferences.pinned.includes(item.id)"
                 @click="preferences.toggle(item.id)"
               >
-                {{ tx(preferences.pinned.includes(item.id) ? '★' : '☆') }}</button
-              ><span class="source-avatar">{{
-                tx(
-                  item.name
-                    .replace(/^Aniyomi:\s*/i, '')
-                    .slice(0, 2)
-                    .toUpperCase(),
-                )
-              }}</span>
-              <div>
-                <h3>{{ tx(item.name) }}</h3>
-                <p>{{ tx(item.lang.toUpperCase()) }} · {{ tx(host(item.baseUrl)) }}</p>
-              </div>
-              <span v-if="!item.isEnabled" class="badge">{{ tx('Désactivée') }}</span>
-            </div>
-            <div v-if="item.isEnabled" class="source-card-actions">
-              <button
-                v-for="view in item.views"
-                :key="view.id"
-                class="btn btn-secondary"
-                @click="openSource(item.id, view.id)"
-              >
-                {{ tx(view.label) }}
+                {{ preferences.pinned.includes(item.id) ? '★' : '☆' }}
               </button>
             </div>
-            <router-link v-else to="/extensions" class="btn btn-secondary">{{
-              tx('Activer dans Extensions')
-            }}</router-link>
           </article>
         </div>
         <p v-else class="source-empty">
@@ -264,6 +270,9 @@
 </template>
 
 <script setup lang="ts">
+import { SlidersHorizontal } from 'lucide-vue-next'
+import ExplorerNavigation from '@/components/ExplorerNavigation.vue'
+import ExtensionAvatar from '@/components/ExtensionAvatar.vue'
 import { tx } from '@/utils/locale'
 import { ref, computed, watch, onMounted, onUnmounted, onActivated, onDeactivated } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -324,17 +333,25 @@ let generation = 0,
   pageSequence = 0,
   filterSequence = 0,
   disposed = false
-const groups = computed(() =>
-  ['native', 'imported'].map((type) => ({
-    type,
-    label: type === 'native' ? 'Préinstallées' : 'Extensions installées',
-    sources: sources.value.filter(
-      (s) =>
-        s.type === type &&
-        `${s.name} ${s.lang}`.toLocaleLowerCase().includes(sourceQuery.value.toLocaleLowerCase()),
-    ),
-  })),
-)
+const groups = computed(() => {
+  const visible = sources.value.filter((s) =>
+    `${s.name} ${s.lang}`.toLocaleLowerCase().includes(sourceQuery.value.toLocaleLowerCase()),
+  )
+  const pinned = visible.filter((s) => preferences.pinned.includes(s.id))
+  const remaining = visible.filter((s) => !preferences.pinned.includes(s.id))
+  const labels: Record<string, string> = { fr: 'Français', en: 'English', all: 'Multilingue' }
+  return [
+    ...(pinned.length ? [{ type: 'pinned', label: 'Épinglées', sources: pinned }] : []),
+    ...[...new Set(remaining.map((s) => s.lang))].sort().map((lang) => ({
+      type: lang,
+      label: labels[lang] || lang.toUpperCase(),
+      sources: remaining
+        .filter((s) => s.lang === lang)
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    })),
+    ...(!visible.length ? [{ type: 'empty', label: 'Sources', sources: [] }] : []),
+  ]
+})
 const tagGroups = computed(() =>
   [...new Set(filters.value.tags.map((t) => t.group))]
     .map((name) => ({
@@ -370,6 +387,15 @@ async function loadSources() {
   } finally {
     listLoading.value = false
   }
+}
+function defaultView(item: CatalogueSource) {
+  return (
+    ['popular', 'latest', 'catalogue', 'search'].find((mode) =>
+      item.views.some((view) => view.id === mode),
+    ) ||
+    item.views[0]?.id ||
+    'search'
+  )
 }
 function openSource(id: string, view: string) {
   void router.push({ name: 'sources', params: { sourceId: id }, query: { mode: view } })
@@ -891,5 +917,110 @@ select:focus {
   .input[type='search'] {
     min-width: 0;
   }
+}
+</style>
+
+<style scoped>
+.source-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.source-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  padding: 1rem 0.25rem;
+}
+.source-identity {
+  flex: 1;
+  min-width: min(250px, 100%);
+}
+.source-card-actions {
+  margin: 0;
+}
+.source-pin {
+  order: 2;
+  margin-left: auto;
+}
+.source-group h2 {
+  color: var(--muted);
+  font-size: 1rem;
+}
+@media (min-width: 1000px) {
+  .source-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 2rem;
+  }
+}
+</style>
+
+<style scoped>
+.source-card {
+  position: relative;
+  padding: 0.75rem 0.25rem;
+}
+.source-open {
+  flex: 1;
+  min-width: 0;
+  color: var(--text);
+  background: none;
+  border: 0;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  padding: 0.25rem 0;
+}
+.source-open h3,
+.source-open p {
+  overflow-wrap: anywhere;
+}
+.source-open:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.source-view-menu > summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 44px;
+  color: var(--muted);
+  cursor: pointer;
+  list-style: none;
+}
+.source-view-menu[open] .source-card-actions {
+  position: absolute;
+  right: 0.25rem;
+  top: calc(100% - 5px);
+  z-index: 3;
+  display: grid;
+  padding: 0.5rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px #0003;
+  max-width: calc(100% - 0.5rem);
+}
+.source-pin {
+  flex-shrink: 0;
+  margin-left: 0;
+  width: 40px;
+}
+.source-identity {
+  gap: 0.75rem;
+  width: 100%;
+  min-width: 0;
+}
+.source-enable {
+  color: var(--accent);
+  font-size: 0.8rem;
 }
 </style>

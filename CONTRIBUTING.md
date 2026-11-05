@@ -156,11 +156,11 @@ natives figurent dans le [guide desktop](docs/desktop-distribution.md).
 | `tests/` | Tests Python et régressions |
 | `frontend/tests/` | Tests unitaires de l’interface |
 | `scripts/` | Vérifications, outils de build et de distribution |
-| `docs/` | Guides, architecture, études et résultats de validation |
+| `docs/` | Guides, études et résultats de validation |
 | `.github/workflows/` | CI, validations Android et releases |
 
-Consultez l’[architecture](docs/architecture/README.md) pour les interactions
-entre les composants. Pour les traductions, conservez les clés et paramètres
+Consultez le [guide de développement](docs/development.md) pour démarrer et vérifier
+les changements. Pour les traductions, conservez les clés et paramètres
 des messages existants et vérifiez le résultat dans l’interface.
 
 ## Vérifier les changements

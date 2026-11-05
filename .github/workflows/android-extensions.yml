@@ -14,6 +14,9 @@ on:
       - 'animelab/routers/download.py'
       - 'animelab/routers/media.py'
       - 'animelab/services/source_http.py'
+      - 'animelab/services/source_resolvers.py'
+      - 'animelab/services/source_registry.py'
+      - 'animelab/services/download_manager.py'
       - 'animelab/services/*extension*'
       - 'animelab/services/android_extension*'
       - '.github/workflows/android-extensions.yml'
@@ -29,6 +32,9 @@ on:
       - 'animelab/routers/download.py'
       - 'animelab/routers/media.py'
       - 'animelab/services/source_http.py'
+      - 'animelab/services/source_resolvers.py'
+      - 'animelab/services/source_registry.py'
+      - 'animelab/services/download_manager.py'
       - 'animelab/services/*extension*'
       - 'animelab/services/android_extension*'
       - '.github/workflows/android-extensions.yml'
@@ -82,14 +88,18 @@ jobs:
         working-directory: android
         run: ./gradlew :app:assembleValidation :app:assembleValidationAndroidTest -Panimelab.isolatedValidation=true --no-daemon --max-workers=2
       - name: Check every packaged native library for 16 KiB alignment
-        run: python scripts/android_release.py android/app/build/outputs/apk/validation/app-validation.apk android-validation --validation --optimized
+        run: |
+          mkdir -p android-validation
+          cp android/app/build/outputs/apk/validation/app-validation.apk android-validation/AnimeLab-Android-under-test.apk
+          cp android/app/build/outputs/apk/androidTest/validation/app-validation-androidTest.apk android-validation/AnimeLab-instrumentation.apk
+          python scripts/android_release.py android-validation/AnimeLab-Android-under-test.apk android-validation --validation --optimized
       - uses: actions/upload-artifact@v4
         with:
           name: extension-animelab-integration-arm64
-          path: |
-            android/app/build/outputs/apk/validation/*.apk
-            android/app/build/outputs/apk/androidTest/validation/*.apk
-            android/app/build/outputs/mapping/validation/missing_rules.txt
+          path: android-validation/*
+          # APK entries are already compressed. Store them for efficient,
+          # verifiable range retrieval on limited-bandwidth connections.
+          compression-level: 0
           if-no-files-found: error
           retention-days: 7
 

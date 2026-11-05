@@ -115,6 +115,8 @@ export interface Episode {
 }
 
 export interface AnimeDetail {
+  studio?: string | null
+  nativeMetadata?: Record<string, unknown>
   title: string
   url: string
   imageUrl: string
@@ -131,6 +133,7 @@ export interface AnimeDetail {
 }
 
 export interface AnimeDetailResponse {
+  sourceName?: string
   success: boolean
   anime: AnimeDetail
   source: string
@@ -256,6 +259,7 @@ export interface ExtensionCapabilitiesSummary {
 }
 
 export interface ExtensionSource {
+  catalog_state?: string
   runtime?: 'recipe' | 'android-apk'
   native_state?: string
   health?: import('./api').ExtensionHealth[]

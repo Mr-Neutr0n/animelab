@@ -82,6 +82,12 @@ export async function mockApp(
     })
     let data = {}
     switch (url.pathname) {
+      case '/api/extensions/android':
+        data = { available: false, packages: [], operations: [] }
+        break
+      case '/api/extensions/repositories':
+        data = { repositories: [] }
+        break
       case '/api/app/startup':
         data = {
           preferences: {

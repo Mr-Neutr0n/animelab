@@ -144,6 +144,9 @@
         {{ tx(playerStore.progressNotice) }}
       </p>
       <!-- Player Footer (Episode Navigation) -->
+      <div v-if="playerStore.challenges.length" class="player-verification">
+        <VerificationPrompt :challenges="playerStore.challenges" />
+      </div>
       <div class="player-footer">
         <button
           class="btn-secondary"
@@ -172,6 +175,7 @@ import { ref, watch, onMounted, onUnmounted, computed } from 'vue'
 import Hls from 'hls.js'
 import { usePlayerStore, playbackTrackKey } from '@/stores/player'
 import { useLibraryStore } from '@/stores/library'
+import VerificationPrompt from '@/components/VerificationPrompt.vue'
 
 const playerStore = usePlayerStore()
 const libraryStore = useLibraryStore()
@@ -627,5 +631,14 @@ onUnmounted(() => {
 .source-tag {
   font-size: 0.82rem;
   color: var(--text-dim);
+}
+</style>
+
+<style scoped>
+.player-verification {
+  flex-shrink: 0;
+  max-height: 35vh;
+  overflow: auto;
+  padding: 0.75rem;
 }
 </style>

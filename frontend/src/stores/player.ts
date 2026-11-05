@@ -3,7 +3,8 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { api } from '@/api/client'
 import { episodeKey } from '@/utils/episodes'
-import type { Episode, SubtitleTrack } from '@/types'
+import type { Episode, SubtitleTrack, SourceChallenge } from '@/types'
+import { useVerificationStore, challengeFromError } from './verification'
 
 export function playbackTrackKey(track: { kind?: string; srclang?: string; label?: string }) {
   return JSON.stringify([track.kind || 'subtitles', track.srclang || '', track.label || '']).slice(
@@ -31,6 +32,11 @@ export const usePlayerStore = defineStore('player', () => {
   const serverType = ref('En ligne')
   const isLoading = ref(false)
   const error = ref<string | null>(null)
+  const challenges = ref<SourceChallenge[]>([])
+  function clearVerification() {
+    challenges.value = []
+    useVerificationStore().clearPending('player-stream')
+  }
   let requestVersion = 0
 
   const mediaEpoch = ref(0)
@@ -151,6 +157,7 @@ export const usePlayerStore = defineStore('player', () => {
   async function resolveStream() {
     if (!currentEpisode.value) return
     const request = ++requestVersion
+    clearVerification()
     const targetUrl = currentEpisode.value.playerUrl || currentEpisode.value.downloadPageUrl
     if (!targetUrl) {
       error.value = 'Aucun lien de streaming disponible pour cet épisode.'
@@ -197,6 +204,13 @@ export const usePlayerStore = defineStore('player', () => {
       }
     } catch (e: any) {
       if (request !== requestVersion) return
+      const challenge = challengeFromError(e)
+      if (challenge) {
+        challenges.value = [challenge]
+        useVerificationStore().waitForVerification('player-stream', [challenge], async () => {
+          if (request === requestVersion && isOpen.value) await resolveStream()
+        })
+      }
       error.value = e.message || 'Erreur lors de la résolution du flux vidéo.'
     } finally {
       if (request === requestVersion) isLoading.value = false
@@ -238,6 +252,7 @@ export const usePlayerStore = defineStore('player', () => {
   }
 
   function closePlayer() {
+    clearVerification()
     void savePlayback(true)
     ++mediaEpoch.value
     playback.value = null
@@ -404,6 +419,7 @@ export const usePlayerStore = defineStore('player', () => {
     serverType,
     isLoading,
     error,
+    challenges,
     hasNext,
     hasPrev,
     openPlayer,

@@ -1,5 +1,6 @@
 from animelab.services.source_registry import source_registry, source_identity
 from animelab.api_contracts import ContractRoute
+from animelab.api_errors import APIProblem
 from animelab.services.source_http import VerificationRequired
 import asyncio
 import logging
@@ -48,9 +49,9 @@ async def search_api(
         expands = bool(recipe and recipe.runtime.get('listing_expansion'))
         source_id = getattr(service, 'id', getattr(service, 'pkg', ''))
         # APK searches can expand seasons and films using several HTTP calls.
-        # Let their bounded worker (45 s) and parent gateway (55 s) finish;
+        # Let their bounded search worker (90 s) and parent (105 s) finish;
         # cancelling them after 12 s turns a healthy source into an error.
-        timeout = 60 if getattr(provider, 'runtime', '') == 'android-apk' else (
+        timeout = 120 if getattr(provider, 'runtime', '') == 'android-apk' else (
             45 if expands or source_id.endswith('.franime') else 12)
         return await asyncio.wait_for(service.search_anime(q.strip()), timeout=timeout)
 
@@ -63,8 +64,11 @@ async def search_api(
             challenges.append({**response.to_dict(), "source": sid})
         elif isinstance(response, BaseException):
             logger.debug("Search source %s failed: %s", sid, response)
-            errors.append({"source": sid, "url": service.base_url, "domain": urlparse(service.base_url).hostname or '',
-                           "message": "La source est momentanément inaccessible"})
+            warning = {"source": sid, "url": service.base_url, "domain": urlparse(service.base_url).hostname or '',
+                       "message": "La source est momentanément inaccessible"}
+            if isinstance(response, APIProblem):
+                warning.update(code=response.problem.code, message=response.problem.messageKey)
+            errors.append(warning)
         else:
             for item in response or []:
                 item.source = sid
@@ -135,6 +139,7 @@ async def fetch_enriched_anime_detail(url: str, source: str = "french-manga") ->
         "detail_obj": detail,
         "anime": anime_dump,
         "source": source,
+        "sourceName": provider.name,
         "isFavorite": is_favorite,
         "autoDownload": auto_download,
         "downloadedEpisodes": list(downloaded_set),

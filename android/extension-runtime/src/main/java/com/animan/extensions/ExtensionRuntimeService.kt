@@ -68,7 +68,7 @@ class ExtensionRuntimeService : Service() {
                 val id = request.getString("operationId")
                 require(id.length in 1..128)
                 runBlocking {
-                    withTimeout(45_000) {
+                    withTimeout(ExtensionOperationPolicy.workerTimeoutMillis(request.optString("operation"))) {
                         jobs[id] = currentCoroutineContext().job
                         try { withContext(Dispatchers.IO) { execute(request) } }
                         finally { jobs.remove(id) }
@@ -97,13 +97,7 @@ class ExtensionRuntimeService : Service() {
             JSONObject().put("ok",false).put("code",code)
                 .apply { if (code=="verification_required") put("url",networkError.target) }.toString()
         } else {
-        val code = when (error) {
-            is CancellationException -> "cancelled"
-            is LinkageError -> "extension_abi_incompatible"
-            is SecurityException -> "extension_untrusted"
-            is UnsupportedOperationException, is NotImplementedError -> "source_operation_unsupported"
-            else -> "extension_runtime_error"
-        }
+        val code = ExtensionOperationPolicy.failureCode(error)
         // Remote exceptions can contain URLs/credentials; export only a stable code/type.
         JSONObject().put("ok", false).put("code", code).put("type", error.javaClass.simpleName).toString()
         }

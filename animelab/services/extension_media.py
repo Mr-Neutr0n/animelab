@@ -14,6 +14,17 @@ from urllib.parse import urljoin, urlsplit
 from animelab.media_policy import validate_media_url
 
 
+def prioritize_candidates(candidates, server=None, quality=None):
+    """Stable ordering keeps native objects and fallback qualities intact."""
+    def field(candidate, name):
+        return str((candidate.get(name) if isinstance(candidate, dict) else getattr(candidate, name, '')) or '').lower()
+    def rank(candidate):
+        server_matches = not server or server == 'auto' or any(server.lower() in field(candidate, key) for key in ('server', 'name'))
+        quality_matches = not quality or quality == 'auto' or quality.lower() in field(candidate, 'quality')
+        return not server_matches, not quality_matches
+    return sorted(candidates, key=rank)
+
+
 @dataclass(frozen=True)
 class Resource:
     url: str

@@ -154,11 +154,11 @@ in the [desktop guide](docs/desktop-distribution.md).
 | `tests/` | Python tests and regression coverage |
 | `frontend/tests/` | Frontend unit tests |
 | `scripts/` | Checks, build tools and distribution tools |
-| `docs/` | Guides, architecture, studies and validation results |
+| `docs/` | Guides, studies and validation results |
 | `.github/workflows/` | CI, Android validation and releases |
 
-See the [architecture documentation](docs/architecture/README.md) for interactions
-between components. When translating, preserve existing message keys and
+See the [development guide](docs/development.md) to run the project and validate
+changes. When translating, preserve existing message keys and
 placeholders, and check the result in the interface.
 
 ## Checking your changes

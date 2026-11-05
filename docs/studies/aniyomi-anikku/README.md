@@ -18,7 +18,7 @@ L'étude identifie aussi des corrections indépendantes du moteur : coexistence 
 ## Documents
 
 - [Rapport détaillé et comparaison](RAPPORT.md).
-- [Plan d'implémentation, dépendances et critères de validation](PLAN_IMPLEMENTATION.md).
+- Plan d'implémentation, dépendances et critères de validation (document historique retiré).
 - [Exigence Android : installation réelle et compatibilité des APK partagés](EXIGENCES_ANDROID_APK.md).
 - [Utilisation, nouveaux parcours et limites actuelles](UTILISATION.md).
 - [Registre d'implémentation et preuves](IMPLEMENTATION_STATUS.md).

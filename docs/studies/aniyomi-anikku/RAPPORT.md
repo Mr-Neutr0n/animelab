@@ -449,7 +449,7 @@ Les validations de production devront être faites sur Linux, Windows et Android
 
 ## 20. Ordre d'implémentation
 
-Le [plan détaillé](PLAN_IMPLEMENTATION.md) définit les lots E01 à E18 et une matrice de couverture de 40 découvertes. Commencer par E01–E05 : invariants de conservation, modèle de données, plusieurs dépôts, nouveaux formats et versions/identités. Poursuivre avec la confiance, le cycle d'installation et les sources multiples, puis les préférences et les API avancées.
+Le plan détaillé (document historique retiré) définit les lots E01 à E18 et une matrice de couverture de 40 découvertes. Commencer par E01–E05 : invariants de conservation, modèle de données, plusieurs dépôts, nouveaux formats et versions/identités. Poursuivre avec la confiance, le cycle d'installation et les sources multiples, puis les préférences et les API avancées.
 
 Les moteurs Android et JVM se préparent après stabilisation du contrat, sans prétendre que les recettes existantes exécutent déjà les APK. Leur adoption dépend de preuves spécifiques. Une non-adoption de la première approche Android ne remplit pas l'objectif : elle impose un travail supplémentaire ou une décision explicite sur le périmètre. Le livrable présent documente les travaux nécessaires ; il ne les déclare pas réalisés.
 

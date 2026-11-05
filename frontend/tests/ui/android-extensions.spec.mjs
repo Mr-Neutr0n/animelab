@@ -52,6 +52,7 @@ test('Android package trust is explicit and names both the version and signer', 
   await page.getByRole('button', { name: 'Approuver cet APK' }).click()
   await expect.poll(() => requests.length).toBe(1)
   expect(requests[0]).toEqual({ approved: true, versionCode: '1', signer: identity.signer })
+  await page.locator('.apk-details > summary').click()
   await expect(page.getByRole('button', { name: 'Révoquer la confiance' })).toBeVisible()
 })
 
