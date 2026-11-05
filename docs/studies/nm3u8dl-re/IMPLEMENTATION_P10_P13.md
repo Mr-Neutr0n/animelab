@@ -11,7 +11,7 @@
 | P12 | Reprise, corruption, panne, renouvellement, arrêt et isolation testés ; décision écrite | Refus de l’adoption de cette version |
 | P13 | Condition P12 non remplie : distribution non retenue | Aucun binaire ajouté aux releases desktop, au Docker ou à l’APK ; workflow d’étude manuel seulement |
 
-Cette clôture suit la règle du [plan de priorités](PRIORITES_IMPLEMENTATION.md) : « en cas de refus, clôturer P13/P15 comme non retenus ». Elle ne signifie pas que des packages Windows/macOS auraient été construits ou validés. Aucun commit, push ou déclenchement distant n’est réalisé par ce lot.
+Cette clôture suit la règle du plan de priorités (document historique retiré) : « en cas de refus, clôturer P13/P15 comme non retenus ». Elle ne signifie pas que des packages Windows/macOS auraient été construits ou validés. Aucun commit, push ou déclenchement distant n’est réalisé par ce lot.
 
 ## Résultats qui motivent la décision
 

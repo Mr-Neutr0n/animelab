@@ -2,7 +2,7 @@
 
 **Décision utilisateur du 28 octobre 2026, préalable à l'implémentation.**
 
-Ce document complète et, en cas de divergence, précise le [rapport](RAPPORT.md) et le [plan E01–E18](PLAN_IMPLEMENTATION.md). Le moteur Android de véritables extensions APK devient un **résultat obligatoire** du chantier. Un gestionnaire de recettes amélioré ne suffit pas à remplir cette exigence.
+Ce document complète et, en cas de divergence, précise le [rapport](RAPPORT.md) et le plan E01–E18 (document historique retiré). Le moteur Android de véritables extensions APK devient un **résultat obligatoire** du chantier. Un gestionnaire de recettes amélioré ne suffit pas à remplir cette exigence.
 
 ## 1. Résultat demandé
 

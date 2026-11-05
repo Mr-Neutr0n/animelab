@@ -269,9 +269,8 @@ Les dépendances Python, y compris les outils de développement, sont verrouill�
 
 ## Documentation
 
-- [Architecture, diagrammes UML et plan d’amélioration](docs/architecture/README.md)
 - [Distribution desktop](docs/desktop-distribution.md) et [guide de build et de stockage Android](docs/android-distribution.md)
-- [Étude et plan d’implémentation de la gestion des extensions Aniyomi/Anikku](docs/studies/aniyomi-anikku/README.md)
+- [Étude et état de validation de la gestion des extensions Aniyomi/Anikku](docs/studies/aniyomi-anikku/README.md)
 - [Configuration Docker](docs/docker.md)
 - [Validation de l’interface mobile](docs/mobile-ui.md) et [étude des fournisseurs de proxys](docs/proxy-providers.md)
 - [Notes de version](docs/releases/) et [éléments graphiques](docs/branding/README.md)
