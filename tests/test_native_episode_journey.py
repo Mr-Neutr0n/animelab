@@ -95,3 +95,19 @@ async def test_embed_can_be_resolved_without_a_container_or_uninitialized_target
     result = await download_manager.get_or_resolve_episode_info('https://example.com/standalone-embed', source='fixture.embed')
     assert result and result.direct_url.endswith('/final.mp4')
     resolved.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_episode_info_expands_recipe_players_on_a_known_embed(monkeypatch):
+    url = 'https://video.sibnet.ru/shell.php?videoid=123#players=fixture-alternatives'
+    alternative = 'https://video.fixture.invalid/working.mp4'
+    recipe = SimpleNamespace(runtime='recipe', name='Recipe',
+        get_episode_sources=AsyncMock(return_value=[{'url': alternative, 'server': 'Alternative'}]))
+    monkeypatch.setattr(extension_service, 'get_container_source_by_id', lambda sid: recipe)
+    resolved = AsyncMock(return_value={'videoUrl': alternative, 'serverType': 'Alternative', 'size': 123})
+    monkeypatch.setattr(download_manager, 'resolve_imported_video_stream', resolved)
+    monkeypatch.setattr(download_manager, 'get_remote_file_size', AsyncMock(return_value=123))
+    result = await download_manager.get_or_resolve_episode_info(url, source='fixture.recipe.players')
+    assert result and result.direct_url == alternative
+    recipe.get_episode_sources.assert_awaited_once_with(url)
+    resolved.assert_awaited_once_with(alternative, referer=url, preferred_quality=None)

@@ -617,7 +617,7 @@ class DownloadManagerService:
                     qualities = {}
                     video_sources = []
                     target = None
-                    if matched_container and (not is_known_embed or getattr(matched_container, 'runtime', '') == 'android-apk'):
+                    if matched_container and (not is_known_embed or parsed_u.fragment or getattr(matched_container, 'runtime', '') == 'android-apk'):
                         try:
                             video_sources = await matched_container.get_episode_sources(download_page_url)
                         except VerificationRequired:
@@ -653,7 +653,7 @@ class DownloadManagerService:
                                 cand_res = await matched_container.resolve_candidate(candidate)
                             else:
                                 cand_res = await self.resolve_imported_video_stream(
-                                    candidate['url'], preferred_quality=preferred_quality
+                                    candidate['url'], referer=download_page_url, preferred_quality=preferred_quality
                                 )
                             if cand_res and cand_res.get("videoUrl"):
                                 resolved = merge_stream_metadata(cand_res, candidate, download_page_url)
