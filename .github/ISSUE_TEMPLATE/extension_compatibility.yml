@@ -1,0 +1,38 @@
+name: 🧩 Test d'extension Aniyomi / Extension Compatibility Report
+description: Partager le résultat d'un test d'extension APK ou de source intégrée / Report extension test results
+title: "[Extension]: "
+labels: ["extensions", "testing"]
+body:
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: Environnement / Runtime
+      options:
+        - Android — Moteur APK natif
+        - Desktop / Serveur — Recette importée
+        - Source intégrée (French-Manga, VoirAnime, AnimePahe)
+    validations:
+      required: true
+  - type: input
+    id: extension_name
+    attributes:
+      label: Nom et version de l'extension / Extension name & version
+      placeholder: "ex. Aniyomi: Anime-Sama v14.33 / Voiranime v14.3"
+    validations:
+      required: true
+  - type: checkboxes
+    id: stages
+    attributes:
+      label: Étapes validées / Working stages
+      options:
+        - label: Recherche / Catalogue (Search & Catalog)
+        - label: Fiche série & liste d'épisodes (Series details & Episode list)
+        - label: Résolution des lecteurs vidéo (Video extractor resolution)
+        - label: Lecture en streaming (Streaming playback)
+        - label: Téléchargement complet d'un épisode (Full episode download)
+        - label: Vérification WebView / Cloudflare (WebView verification resume)
+  - type: textarea
+    id: details
+    attributes:
+      label: Détails, appareil et erreurs observées / Device details & observed errors
+      placeholder: "Précisez le modèle du téléphone/version Android (ou OS desktop), l'anime/épisode testé et le message affiché."

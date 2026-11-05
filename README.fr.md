@@ -13,12 +13,49 @@ décrit le premier démarrage, les thèmes, les dossiers et les permissions Andr
 
 **AnimeLab** permet de découvrir, regarder, télécharger et organiser des épisodes d’anime depuis les sources prises en charge. L’application associe un moteur **Python / FastAPI** à une interface **Vue 3 / TypeScript**, disponible sur ordinateur, sur Android et dans un navigateur.
 
+## Aperçu visuel
+
+<p align="center">
+  <img src="docs/showcase/animelab-overview.gif" alt="Démonstration complète d'AnimeLab" width="900" />
+</p>
+
+<p align="center">
+  <em>Parcours complet : Démarrage → Accueil → Recherche rapide (<code>Ctrl+K</code>) → Téléchargement par lot VF/VOSTFR → File active → Bibliothèque Auto-DL → Extensions Aniyomi (<a href="docs/showcase/animelab-demo.mp4">voir la vidéo HD MP4</a>).</em>
+</p>
+
+| Accueil & Dernières sorties | Recherche rapide (`Ctrl + K`) |
+| :---: | :---: |
+| ![Accueil](docs/showcase/03-home-dashboard.png) | ![Recherche rapide](docs/showcase/04-quick-search.png) |
+| **Sélection par lot (VF / VOSTFR / Sous-titres)** | **File de téléchargements en direct** |
+| ![Modale de téléchargement par lot](docs/showcase/06-batch-download-modal.png) | ![Téléchargements actifs](docs/showcase/07a-downloads-overview.png) |
+| **Bibliothèque & Suivi automatique (`Auto-DL`)** | **Explorateur de Sources & Extensions Aniyomi** |
+| ![Bibliothèque Auto-DL](docs/showcase/08-library-autodl.png) | ![Extensions Aniyomi](docs/showcase/09b-extensions-actions.png) |
+| **Thèmes (Turquoise, Violet, Ambre, AMOLED) & Plex/Jellyfin** | **Console d’administration Desktop** |
+| ![Thèmes et paramètres](docs/showcase/11-themes-palettes.png) | ![Administration Desktop](docs/showcase/01-desktop-admin.png) |
+
+### Interface Mobile & Android
+
+<p align="center">
+  <img src="docs/showcase/10-mobile-android-views.png" alt="Vues mobiles Android d'AnimeLab" width="900" />
+</p>
+
+<details>
+<summary><strong>🎬 Voir les GIFs détaillés par fonctionnalité</strong></summary>
+
+#### 1. Recherche rapide, sélection VF/Sous-titres et téléchargements actifs
+![Recherche et téléchargement](docs/showcase/animelab-search-download.gif)
+
+#### 2. Bibliothèque Auto-DL et explorateur d’extensions Aniyomi
+![Bibliothèque et extensions](docs/showcase/animelab-library-extensions.gif)
+
+</details>
+
 ## Téléchargements
 
 Choisissez un paquet dans les [releases GitHub](https://github.com/loeuf237/animelab/releases). Les téléchargements Android et desktop sont regroupés dans la même release.
 
-**Toutes les versions actuelles sont des bêtas.** Les [notes de la v0.1.6-beta.3](docs/releases/v0.1.6-beta.3.md)
-décrivent le moteur expérimental d’extensions APK Android, les changements des sessions WebView et les limites restantes.
+**Toutes les versions actuelles sont des bêtas.** Les [notes de la v0.1.6-beta.5](docs/releases/v0.1.6-beta.5.md)
+décrivent le nouvel explorateur Sources/Extensions, les corrections de téléchargement APK Android, les sessions WebView et les limites restantes.
 
 | Plateforme | Paquet | Démarrage |
 | --- | --- | --- |
@@ -32,7 +69,7 @@ Les paquets desktop incluent Python, l’interface compilée, FFmpeg et ffprobe.
 
 Les versions desktop ouvrent un launcher natif à onglets. Choisissez l’interface, le port, les dossiers et les paramètres de téléchargement, puis cliquez sur **Launch**. Le launcher propose aussi des diagnostics, des paramètres de proxy, des sauvegardes et un arrêt propre. Consultez les [notes de la version 0.1.4](docs/releases/v0.1.4.md) et le [guide des outils desktop et de récupération](docs/desktop-distribution.md).
 
-La prise en charge des appareils Android reste en **bêta**. Les [notes de la version 0.1.6-beta.3](docs/releases/v0.1.6-beta.3.md) expliquent le moteur APK expérimental, les essais sur émulateurs et la validation sur appareils physiques encore attendue. Les fichiers de release incluent les empreintes de contrôle et les informations de build.
+La prise en charge des appareils Android reste en **bêta**. Les [notes de la version 0.1.6-beta.5](docs/releases/v0.1.6-beta.5.md) expliquent le moteur APK expérimental, les essais sur émulateurs et la validation sur appareils physiques encore attendue. Les fichiers de release incluent les empreintes de contrôle et les informations de build.
 
 Dans les navigateurs compatibles, installez l’interface web comme PWA avec l’option d’installation ou **Ajouter à l’écran d’accueil**. Le serveur AnimeLab doit rester disponible.
 
