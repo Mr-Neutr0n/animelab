@@ -81,6 +81,7 @@ async def resolve_imported(ctx, task, direct_url, skip_local):
     direct_url = resolved["videoUrl"]
     server_type = resolved.get("serverType", "imported")
     task.selectedServer = server_type
+    task.selectedQuality = resolved.get("selectedQuality") or task.selectedQuality
     task.directDownloadUrl = direct_url
     ctx._update_resolved_subtitles(task, resolved.get("subtitles", []), target_url)
     task.subtitleUrl = resolved.get("subtitleUrl") or task.subtitleUrl

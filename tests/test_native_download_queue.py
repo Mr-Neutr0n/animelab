@@ -41,7 +41,7 @@ async def test_native_queue_preserves_episode_fragment_and_uses_apk_resolution_a
         assert operation == 'resolve_video'
         if value['memo']['video'] == 'unavailable': raise ValueError('Synthetic unavailable rendition')
         assert value['memo']['video'] == 'native-state'
-        return {'videoUrl':video_url, 'videoTitle':'480p', 'headers':list(headers.items()), 'subtitleTracks':[], 'audioTracks':[]}
+        return {'videoUrl':video_url, 'videoTitle':'360p', 'headers':list(headers.items()), 'subtitleTracks':[], 'audioTracks':[]}
     apk.call = invoke
     monkeypatch.setattr(extension_service,'get_container_source_by_id',lambda sid: apk if sid == apk.source_id else None)
     monkeypatch.setattr('animelab.security.is_safe_url',lambda url,**kwargs: url == video_url)
@@ -74,6 +74,7 @@ async def test_native_queue_preserves_episode_fragment_and_uses_apk_resolution_a
         assert len(requests) == 1 and native_calls == ['hosters','resolve_video','resolve_video']
         generic.assert_not_awaited()
         assert task.requestHeaders == headers
+        assert task.selectedQuality == '360p'  # Actual lazy resolution wins over the requested label.
         assert json.loads(task.mediaJson)['transferAttempt']['status'] == 'completed'
         assert list(destination.parent.glob('*.mp4')) == [destination]
     finally:
@@ -95,3 +96,17 @@ async def test_desktop_recipe_receives_its_complete_episode_fragment(monkeypatch
     media = await SourceResolverRegistry().resolve(ctx,task,need_resolve=True,skip_local=False)
     service.get_episode_sources.assert_awaited_once_with(url)
     assert media.url == video
+
+
+@pytest.mark.asyncio
+async def test_unavailable_native_source_is_not_replaced_by_a_generic_extractor(monkeypatch):
+    from animelab.api_errors import APIProblem
+    from animelab.services.source_resolvers import SourceResolverRegistry
+    monkeypatch.setattr(extension_service,'get_container_source_by_id',lambda sid:None)
+    generic=AsyncMock()
+    ctx=SimpleNamespace(_needs_scraping_resolution=lambda url:False,resolve_imported_video_stream=generic)
+    task=DownloadTask(fileUrl='https://source.fixture.invalid/episode',source='aniyomi:1152921504606846977')
+    with pytest.raises(APIProblem) as failure:
+        await SourceResolverRegistry().resolve(ctx,task,need_resolve=True,skip_local=False)
+    assert failure.value.problem.code == 'source_not_found'
+    generic.assert_not_awaited()
