@@ -1,0 +1,39 @@
+name: 🐛 Rapport de bug / Bug Report
+description: Signaler un problème sur Android, Windows, Linux, macOS ou Docker / Report an issue
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Plateforme / Platform
+      options:
+        - Android (APK)
+        - Linux (x64 / Source)
+        - Windows (x64)
+        - macOS (Apple Silicon / Intel)
+        - Docker / Serveur partagé
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version d'AnimeLab
+      placeholder: "ex. v0.1.6-beta.5 ou commit main"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Étapes pour reproduire / Steps to reproduce
+      placeholder: |
+        1. Ouvrir l'onglet ...
+        2. Rechercher / cliquer sur ...
+        3. Observer l'erreur ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Captures d'écran ou journaux / Screenshots or logs
+      placeholder: "Collez ici le message d'erreur, les logs du launcher ou une capture d'écran."

@@ -13,12 +13,49 @@ for appearance, storage selection, Android permissions and release checks.
 
 **AnimeLab** lets you discover, watch, download and organize anime episodes from supported sources. It combines a **Python / FastAPI** engine with a **Vue 3 / TypeScript** interface, available on desktop, Android and in a browser.
 
+## Visual Overview
+
+<p align="center">
+  <img src="docs/showcase/animelab-overview.gif" alt="AnimeLab Full Walkthrough Demo" width="900" />
+</p>
+
+<p align="center">
+  <em>End-to-end walkthrough: Startup → Home Dashboard → Instant Search (<code>Ctrl+K</code>) → Batch VF/Subtitled Download → Live Transfer Queue → Library Auto-DL → Aniyomi Extensions Explorer (<a href="docs/showcase/animelab-demo.mp4">watch HD MP4 video</a>).</em>
+</p>
+
+| Home & Latest Releases | Quick Search (`Ctrl + K`) |
+| :---: | :---: |
+| ![Home Dashboard](docs/showcase/03-home-dashboard.png) | ![Quick Search](docs/showcase/04-quick-search.png) |
+| **Batch Episode Selection (VF / VOSTFR / Subtitles)** | **Live Download Queue & Transfer Speed** |
+| ![Batch Download Modal](docs/showcase/06-batch-download-modal.png) | ![Active Downloads](docs/showcase/07a-downloads-overview.png) |
+| **Library & Automatic Tracking (`Auto-DL`)** | **Sources & Aniyomi Extensions Explorer** |
+| ![Library Auto-DL](docs/showcase/08-library-autodl.png) | ![Aniyomi Extensions](docs/showcase/09b-extensions-actions.png) |
+| **Themes (Turquoise, Violet, Amber, AMOLED) & Plex/Jellyfin** | **Desktop Administration Console** |
+| ![Themes and Settings](docs/showcase/11-themes-palettes.png) | ![Desktop Admin](docs/showcase/01-desktop-admin.png) |
+
+### Mobile & Android UI
+
+<p align="center">
+  <img src="docs/showcase/10-mobile-android-views.png" alt="AnimeLab Mobile and Android Views" width="900" />
+</p>
+
+<details>
+<summary><strong>🎬 View feature-specific GIFs</strong></summary>
+
+#### 1. Quick Search, Batch VF/Subtitle Selection & Live Downloads
+![Search and Download GIF](docs/showcase/animelab-search-download.gif)
+
+#### 2. Library Auto-DL & Aniyomi Extensions Explorer
+![Library and Extensions GIF](docs/showcase/animelab-library-extensions.gif)
+
+</details>
+
 ## Downloads
 
 Choose a build from [GitHub Releases](https://github.com/loeuf237/animelab/releases). Android and desktop downloads are grouped in the same release.
 
-**All current versions are beta.** The [v0.1.6-beta.3 notes](docs/releases/v0.1.6-beta.3.md)
-describe the experimental Android APK extension runtime, WebView session changes and remaining limitations.
+**All current versions are beta.** The [v0.1.6-beta.5 notes](docs/releases/v0.1.6-beta.5.md)
+describe the redesigned Sources/Extensions explorer, Android APK download fixes, WebView session changes and remaining limitations.
 
 | Platform | Package | Getting started |
 | --- | --- | --- |
@@ -32,7 +69,7 @@ Desktop packages include Python, the compiled interface, FFmpeg and ffprobe. Win
 
 Desktop builds open a native tabbed launcher. Choose your interface, port, folders and download settings, then click **Launch**. It also provides diagnostics, proxy settings, backups and graceful shutdown. See the [0.1.4 release notes](docs/releases/v0.1.4.md) and [desktop tools and recovery](docs/desktop-distribution.md).
 
-Android device coverage remains **beta**. The [0.1.6-beta.3 release notes](docs/releases/v0.1.6-beta.3.md) explain the experimental APK runtime, emulator coverage and pending physical-device validation. Release assets include checksums and build information.
+Android device coverage remains **beta**. The [0.1.6-beta.5 release notes](docs/releases/v0.1.6-beta.5.md) explain the experimental APK runtime, emulator coverage and pending physical-device validation. Release assets include checksums and build information.
 
 In supporting browsers, install the web interface as a PWA using the browser's install or **Add to Home Screen** option. The AnimeLab server must remain available.
 
