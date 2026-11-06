@@ -5,6 +5,12 @@
 - Main improvement.
 - Main fix.
 
+## Contributors
+
+<!-- Replace with accepted contributions and their authors; include code,
+design, documentation and device testing. Link the corresponding PR or report.
+Remove this placeholder before publishing. -->
+
 ## Downloads
 
 | Platform | Architecture |

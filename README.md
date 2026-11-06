@@ -13,6 +13,17 @@ for appearance, storage selection, Android permissions and release checks.
 
 **AnimeLab** lets you discover, watch, download and organize anime episodes from supported sources. It combines a **Python / FastAPI** engine with a **Vue 3 / TypeScript** interface, available on desktop, Android and in a browser.
 
+## Contribute to AnimeLab
+
+**Three ways to start:** [test Android offline playback (#32)](https://github.com/loeuf237/animelab/issues/32),
+[improve the Linux walkthrough (#21)](https://github.com/loeuf237/animelab/issues/21), or
+[design a theme palette (#28)](https://github.com/loeuf237/animelab/issues/28).
+Code, testing, design and documentation contributions are welcome in English or French.
+
+[First contribution: steps and deliverables](docs/first-contribution.en.md) ·
+[Contribution guide](CONTRIBUTING.en.md) ·
+[Questions and ideas](https://github.com/loeuf237/animelab/discussions)
+
 ## Visual Overview
 
 <p align="center">
@@ -22,6 +33,9 @@ for appearance, storage selection, Android permissions and release checks.
 <p align="center">
   <em>End-to-end walkthrough: Startup → Home Dashboard → Instant Search (<code>Ctrl+K</code>) → Batch VF/Subtitled Download → Live Transfer Queue → Library Auto-DL → Aniyomi Extensions Explorer (<a href="docs/showcase/animelab-demo.mp4">watch HD MP4 video</a>).</em>
 </p>
+
+<details>
+<summary><strong>Screenshots: desktop, mobile and Android</strong></summary>
 
 | Home & Latest Releases | Quick Search (`Ctrl + K`) |
 | :---: | :---: |
@@ -38,6 +52,8 @@ for appearance, storage selection, Android permissions and release checks.
 <p align="center">
   <img src="docs/showcase/10-mobile-android-views.png" alt="AnimeLab Mobile and Android Views" width="900" />
 </p>
+
+</details>
 
 <details>
 <summary><strong>🎬 View feature-specific GIFs</strong></summary>
@@ -253,17 +269,18 @@ Start with the contribution guide ([English](CONTRIBUTING.en.md) /
 [Français](CONTRIBUTING.md)) for bug reports, setup, validation and pull requests.
 Contributions in French and English are welcome.
 
-**We are looking for contributors:** Android loading-screen design, automatic
-update detection and downloads, duplicate-download fixes (French-Manga and other
-affected sources), Aniyomi/Anikku extension validation, a new **Tools** tab for
-subtitles and multi-audio MKV workflows, Extensions page design and documentation.
-We also welcome themes, first-launch Android folder selection, video-player
-improvements, better library management and reliable offline playback on Android.
-These are contribution opportunities; see the goals and validation criteria in
-the call for contributors ([English](docs/contribution-priorities.en.md) /
-[Français](docs/contribution-priorities.md)). Feature and architecture proposals
-are welcome. Contact the maintainer on [Telegram — @loeuf237](https://t.me/loeuf237).
-Find published tasks in the [contribution tracker #12](https://github.com/loeuf237/animelab/issues/12).
+Start with the [three current first-contribution briefs](docs/first-contribution.en.md):
+Android offline testing, the Linux guide and a theme palette. Comment on the
+chosen issue with your proposed scope; the maintainer can help identify files,
+reproduce a problem and review a small first change.
+
+The [detailed contribution priorities](docs/contribution-priorities.en.md) distinguish
+existing features from remaining work, including extension validation, player
+usability, subtitle tools and multi-audio workflows. The
+[contribution tracker #12](https://github.com/loeuf237/animelab/issues/12) records progress.
+Use [Discussions](https://github.com/loeuf237/animelab/discussions) for questions and
+ideas, and issues for bounded tasks and reproducible bugs. Private contact:
+[Telegram — @loeuf237](https://t.me/loeuf237); keep useful technical decisions public.
 
 The Python engine lives in `animelab/`; desktop packaging uses `animelab.spec`.
 See the [package namespace and compatibility notes](docs/package-namespace.md).

@@ -21,6 +21,15 @@ la PR afin que les autres contributeurs puissent les retrouver.
 Consultez le [guide de contribution](../CONTRIBUTING.md) pour l’installation,
 les vérifications et les pull requests.
 
+## Points de départ — 6 novembre 2026
+
+Commencez par les [trois fiches pratiques](first-contribution.md) :
+rapport Android hors ligne #32, guide Linux #21 ou palette de thème #28.
+Demandez de l’aide dans l’issue choisie ; un rapport ou une maquette annotée est utile.
+La comparaison des versions (#14) et le filtre de bibliothèque (#31) sont déjà implémentés.
+Les treize chantiers ci-dessous précisent fonctions existantes et travail restant ;
+lisez leur état avant de proposer une implémentation.
+
 ## 1. Repenser l’écran de chargement Android
 
 **Objectif :** rendre le démarrage plus agréable et compréhensible, avec une
@@ -37,6 +46,15 @@ erreur sur Android. Point d’entrée :
 [`MainActivity.kt`](../android/app/src/main/java/com/animan/app/MainActivity.kt).
 
 ## 2. Détecter et télécharger automatiquement les nouvelles versions
+
+**Disponible :** vérification des versions, comparaison numérique, canaux
+stable/bêta et liens de release dans
+[`app_updates.py`](../animelab/services/app_updates.py), avec tests hors ligne dans
+[`test_app_startup.py`](../tests/test_app_startup.py). Voir le
+[guide de démarrage et mises à jour](startup-and-updates.md). L’ancienne tâche #14 est terminée.
+**Reste à faire :** téléchargement facultatif du paquet adapté, vérification
+d’intégrité et de signature, gestion des interruptions et relais d’installation.
+Étendre le service existant sans créer un second comparateur de versions.
 
 **Objectif :** proposer dans l’application un parcours de mise à jour inspiré
 de Mihon/Aniyomi, en commençant par Android : détection d’une nouvelle version,
@@ -56,6 +74,11 @@ laisser Android demander sa confirmation normale. Une mise à jour téléchargé
 doit rester distincte d’une mise à jour effectivement installée.
 
 ## 3. Corriger les téléchargements et enregistrements en double
+
+**Disponible :** la PR #33 a corrigé des copies finales conservées inutilement.
+**Reste à faire :** vérifier dans #15 si un cas distinct de duplication persiste
+sur bêta.5 ; consigner aussi une absence de reproduction. Ne pas considérer le
+bug historique comme toujours présent ni supprimer les éditions voulues.
 
 **Problème signalé :** un même fichier peut être téléchargé ou enregistré
 plusieurs fois avec la source intégrée **French-Manga**. Il faut reproduire le
@@ -149,6 +172,11 @@ petites étapes testables avant d’étendre l’outil.
 
 ## 7. Repenser la page Extensions
 
+**Disponible :** navigation Sources/Extensions, listes par langue, épingles,
+recherche, préférences des paquets et actions de mise à jour dans bêta.5.
+**Reste à faire :** identifier des problèmes concrets d’accessibilité, de petits
+écrans ou de compréhension des états. #20 part désormais de ces écrans existants.
+
 **Objectif :** améliorer son ergonomie et son apparence en s’inspirant de
 Mihon/Aniyomi : navigation claire, listes lisibles et actions faciles à repérer.
 
@@ -182,12 +210,21 @@ découvrant le projet est particulièrement utile.
 
 ## 9. Créer des thèmes pour l’application
 
+**Disponible :** modes système/clair/sombre, palettes turquoise/violet/ambre/AMOLED,
+sélecteur et choix persistant. Partir de
+[`themes.css`](../frontend/src/themes.css),
+[`ThemePicker.vue`](../frontend/src/components/ThemePicker.vue) et
+[`appearance.ts`](../frontend/src/stores/appearance.ts).
+**Reste à faire :** documenter les variables existantes, proposer une palette dans
+#28 et vérifier contrastes et replis. Un import arbitraire de thèmes demande une
+proposition séparée ; réutiliser le sélecteur actuel.
+
 **Objectif :** permettre aux contributeurs de proposer des thèmes et aux
 utilisateurs de choisir l’apparence d’AnimeLab, au-delà des modes clair/sombre.
 
-Définir un format de palette réutilisant les variables de style existantes,
-des aperçus et un sélecteur de thèmes. Les premiers livrables peuvent être une
-palette documentée et des maquettes, puis un thème intégré. Prévoir le choix
+Documenter les variables de palette et l’intégration au sélecteur existant.
+Les premiers livrables peuvent être une palette supplémentaire documentée et
+des maquettes, puis son intégration. Prévoir le choix
 persistant, le retour au thème par défaut et la cohérence des écrans Android,
 desktop et web. Un éventuel import de thèmes doit utiliser des données
 déclaratives validées, avec des ressources disponibles hors ligne.
@@ -200,13 +237,18 @@ régression des thèmes existants.
 
 ## 10. Choisir un dossier externe au premier démarrage Android
 
+**Disponible :** le choix initial du dossier existe depuis bêta.4, conservé dans
+[`StartupFlow.vue`](../frontend/src/components/StartupFlow.vue) avec le pont de stockage Android.
+**Reste à faire :** #24 suit les preuves sur appareil pour annulation, redémarrage,
+export, dossier indisponible et autorisation révoquée ; #29 propose des améliorations
+de texte et de récupération sur cet écran. Ne pas recréer le parcours initial.
+
 **Objectif :** proposer dès le premier lancement un dossier AnimeLab choisi par
 l’utilisateur pour ses médias, sous-titres et exports, en réutilisant le choix
 de dossier déjà disponible dans les paramètres Android.
 
-Intégrer cette étape à l’accueil initial : expliquer le dossier utilisé,
-ouvrir le sélecteur système, confirmer le choix ou conserver la destination
-par défaut. Préserver l’autorisation persistante et permettre de modifier le
+Valider l’étape existante : explication du dossier, sélecteur système,
+confirmation du choix et destination par défaut explicite. Préserver l’autorisation persistante et permettre de modifier le
 choix plus tard. Définir clairement quelles données sont exportées ; les bases,
 cookies et secrets restent dans le stockage privé de l’application.
 
@@ -235,6 +277,12 @@ prises en charge et annoncer explicitement les limites de formats/codecs.
 Inclure une lecture locale sans réseau et préserver le comportement desktop/web.
 
 ## 12. Améliorer la gestion de la bibliothèque
+
+**Disponible :** le filtre de titres local, non destructif et insensible aux
+accents a été intégré par la PR #34 ; #31 est terminée.
+**Reste à faire :** choisir une amélioration distincte : filtre de source ou d’état
+de lecture, tri ou disponibilité locale vérifiée. Conserver le filtre actuel et
+éviter une migration générale de bibliothèque comme première tâche.
 
 **Objectif :** faciliter la recherche et l’organisation des séries, des épisodes
 et des médias téléchargés dans une bibliothèque qui grandit.

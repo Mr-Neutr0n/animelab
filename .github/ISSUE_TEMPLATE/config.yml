@@ -4,8 +4,8 @@ contact_links:
     url: https://github.com/loeuf237/animelab/discussions
     about: Posez vos questions, partagez vos retours ou proposez des idées / Ask questions, share feedback or propose ideas.
   - name: 🛠️ Chantiers de contribution / Contribution Priorities
-    url: https://github.com/loeuf237/animelab/blob/main/docs/contribution-priorities.md
-    about: Consultez les 13 chantiers ouverts (Android, Python/FastAPI, Vue 3/TS, Design, Tests).
+    url: https://github.com/loeuf237/animelab/blob/main/docs/first-contribution.md
+    about: Trois premières contributions et état des chantiers / Three first tasks and remaining work.
   - name: ✈️ Contact Mainteneur (Telegram @loeuf237)
     url: https://t.me/loeuf237
     about: Échanger directement avec le mainteneur pour coordonner un chantier ou un test.
