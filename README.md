@@ -22,7 +22,8 @@ Code, testing, design and documentation contributions are welcome in English or 
 
 [First contribution: steps and deliverables](docs/first-contribution.en.md) ·
 [Contribution guide](CONTRIBUTING.en.md) ·
-[Questions and ideas](https://github.com/loeuf237/animelab/discussions)
+[Questions and ideas](https://github.com/loeuf237/animelab/discussions) ·
+[Telegram updates](https://t.me/animelabchannel)
 
 ## Visual Overview
 

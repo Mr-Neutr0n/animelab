@@ -17,7 +17,7 @@ Les textes ci-dessous sont des brouillons, pas des preuves de publication.
 | Hacker News | Le mainteneur écrit et publie lui-même : les règles excluent texte généré et publication automatisée. Montrer un logiciel essayable avec **Show HN**, sans demande de votes. |
 | LinuxFr.org | Journal technique original, ou dépêche étoffée soumise à modération ; préciser licence, fonctionnement, installation et limites plutôt qu’un simple message publicitaire. |
 | Discord / forums NAS et Home-Cinema / groupes Telegram | Identifier le groupe exact et son espace projets autorisé ; adapter le message et éviter les envois répétés. |
-| Canal Telegram AnimeLab | Publier l’accueil ci-dessous une fois le canal identifié et accessible ; épingler le message de démarrage. |
+| Canal Telegram AnimeLab | Canal [@animelabchannel](https://t.me/animelabchannel) identifié ; publier l’accueil puis l’épingler après connexion avec un compte administrateur. |
 
 Sources : [r/selfhosted](https://www.reddit.com/r/selfhosted/about/rules.json),
 [r/homelab](https://www.reddit.com/r/homelab/about/rules.json),
@@ -155,7 +155,7 @@ https://github.com/loeuf237/animelab/issues/12
 Un rapport reproductible ou une relecture du guide est déjà utile.
 L’assistance IA intervient dans le développement et la préparation de ce message.
 
-## Canal Telegram AnimeLab — message d’accueil à épingler
+## Canal Telegram @animelabchannel — message d’accueil à épingler
 
 Bienvenue dans le canal AnimeLab !
 

@@ -9,3 +9,6 @@ contact_links:
   - name: ✈️ Contact Mainteneur (Telegram @loeuf237)
     url: https://t.me/loeuf237
     about: Échanger directement avec le mainteneur pour coordonner un chantier ou un test.
+  - name: 📣 Actualités AnimeLab / AnimeLab updates
+    url: https://t.me/animelabchannel
+    about: Canal du projet / Project channel. Questions techniques dans GitHub Discussions.

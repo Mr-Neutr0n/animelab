@@ -22,7 +22,8 @@ Code, tests, design et documentation : les contributions en français et en angl
 
 [Première contribution : étapes et livrables](docs/first-contribution.md) ·
 [Guide de contribution](CONTRIBUTING.md) ·
-[Questions et idées](https://github.com/loeuf237/animelab/discussions)
+[Questions et idées](https://github.com/loeuf237/animelab/discussions) ·
+[Actualités Telegram](https://t.me/animelabchannel)
 
 ## Aperçu visuel
 
