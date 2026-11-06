@@ -20,6 +20,15 @@ decisions and test results in the issue or PR so other contributors can find the
 See the [contribution guide](../CONTRIBUTING.en.md) for setup, checks and pull
 requests.
 
+## Current starting points — 6 November 2026
+
+Start with the [three practical briefs](first-contribution.en.md):
+Android offline report #32, Linux walkthrough #21, or theme palette #28.
+Ask for help in the chosen issue; an annotated report or mockup is a valid contribution.
+Version comparison (#14) and the library title filter (#31) are already implemented.
+The thirteen areas below include both existing functionality and remaining work;
+read their status before proposing an implementation.
+
 ## 1. Redesign the Android loading screen
 
 **Goal:** make startup more pleasant and understandable, with a design that
@@ -37,6 +46,15 @@ Android. Starting point:
 
 ## 2. Detect and automatically download new versions
 
+**Already available:** version checks, numeric version comparison, stable/beta
+filtering and release links are implemented in
+[`app_updates.py`](../animelab/services/app_updates.py), with offline tests in
+[`test_app_startup.py`](../tests/test_app_startup.py). See
+[setup and updates](startup-and-updates.md). The former helper task #14 is completed.
+**Remaining:** optional package downloading, architecture selection, integrity
+and signing checks, interruption handling and installation handoff. Extend the
+existing service; do not build a second version comparator.
+
 **Goal:** provide an in-app update flow inspired by Mihon/Aniyomi, starting on
 Android: detect a new version, show its changes, offer configurable automatic
 downloads and install through the Android installation mechanism.
@@ -53,6 +71,11 @@ data and let Android request its normal installation confirmation. Keep a
 downloaded update distinct from an update that has actually been installed.
 
 ## 3. Fix duplicate downloads and saved files
+
+**Already available:** PR #33 corrected unnecessary retained final copies.
+**Remaining:** use #15 to check whether a distinct duplication case still occurs
+on beta.5; record a non-reproduction as such. Do not assume the historical bug
+still exists or remove intentional editions/qualities.
 
 **Reported problem:** the same file can be downloaded or saved multiple times
 with the built-in **French-Manga** source. Reproduce the case, identify the
@@ -144,6 +167,12 @@ extending the tool.
 
 ## 7. Redesign the Extensions page
 
+**Already available:** beta.5 has Sources/Extensions navigation, language lists,
+pins, search, package preferences and update actions.
+**Remaining:** audit the current screens for concrete accessibility, small-screen
+or state-clarity problems. #20 now starts from this implementation, rather than
+a blank redesign.
+
 **Goal:** improve usability and appearance with inspiration from Mihon/Aniyomi:
 clear navigation, readable lists and easy-to-find actions.
 
@@ -176,12 +205,21 @@ particularly useful.
 
 ## 9. Create application themes
 
+**Already available:** system/light/dark modes, teal/lavender/ember/AMOLED palettes,
+a picker and persistent selection. Start with
+[`themes.css`](../frontend/src/themes.css),
+[`ThemePicker.vue`](../frontend/src/components/ThemePicker.vue) and
+[`appearance.ts`](../frontend/src/stores/appearance.ts).
+**Remaining:** document the existing token contract, propose an additional palette
+in #28, and validate contrast and fallback behavior. Treat arbitrary theme import
+as a separate proposal; reuse the current picker.
+
 **Goal:** let contributors offer themes and let users choose AnimeLab’s
 appearance beyond the existing light/dark modes.
 
-Define a palette format reusing existing style variables, previews and a theme
-selector. Initial deliverables can be a documented palette and mockups, followed
-by an integrated theme. Support persistent selection, restoring the default and
+Document the existing palette variables and picker integration. Initial
+deliverables can be a documented extra palette and mockups, followed by an
+integrated theme. Support persistent selection, restoring the default and
 consistency across Android, desktop and web screens. Any theme import should
 use validated declarative data with resources available offline.
 
@@ -192,12 +230,19 @@ and existing themes keep working.
 
 ## 10. Choose an external folder on first Android launch
 
+**Already available:** beta.4 introduced initial folder selection and beta.5
+retains it in [`StartupFlow.vue`](../frontend/src/components/StartupFlow.vue),
+using the Android storage bridge.
+**Remaining:** #24 now tracks device evidence for cancellation, restart, export,
+unavailable folders and revoked grants; #29 proposes wording/recovery improvements
+to the actual screen. Do not implement another onboarding flow.
+
 **Goal:** offer a user-selected AnimeLab folder for media, subtitles and exports
 on first launch, reusing the folder selection already available in Android
 settings.
 
-Add this step to initial onboarding: explain the destination, open the system
-picker, confirm the selection or keep the default. Preserve the persistent
+Validate the existing onboarding step: destination explanation, system
+picker, confirmed selection and explicit default. Preserve the persistent
 permission and allow changing the folder later. Clearly define exported data;
 databases, cookies and secrets remain in private application storage.
 
@@ -224,6 +269,12 @@ format/codec limitations explicitly. Include local playback without a network
 and preserve desktop/web behavior.
 
 ## 12. Improve library management
+
+**Already available:** the non-destructive, accent-insensitive title filter
+landed in PR #34; #31 is completed.
+**Remaining:** choose one separate improvement such as source/watch-state filters,
+sorting or verified local availability. Preserve the current filter and avoid
+introducing a broad library migration as a first task.
 
 **Goal:** make series, episodes and downloaded media easier to find and organize
 as the library grows.

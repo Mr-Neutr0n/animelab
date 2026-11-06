@@ -13,6 +13,18 @@ décrit le premier démarrage, les thèmes, les dossiers et les permissions Andr
 
 **AnimeLab** permet de découvrir, regarder, télécharger et organiser des épisodes d’anime depuis les sources prises en charge. L’application associe un moteur **Python / FastAPI** à une interface **Vue 3 / TypeScript**, disponible sur ordinateur, sur Android et dans un navigateur.
 
+## Contribuer à AnimeLab
+
+**Trois façons de commencer :** [tester la lecture hors ligne Android (#32)](https://github.com/loeuf237/animelab/issues/32),
+[améliorer le guide Linux (#21)](https://github.com/loeuf237/animelab/issues/21) ou
+[concevoir une palette de thème (#28)](https://github.com/loeuf237/animelab/issues/28).
+Code, tests, design et documentation : les contributions en français et en anglais sont les bienvenues.
+
+[Première contribution : étapes et livrables](docs/first-contribution.md) ·
+[Guide de contribution](CONTRIBUTING.md) ·
+[Questions et idées](https://github.com/loeuf237/animelab/discussions) ·
+[Actualités Telegram](https://t.me/animelabchannel)
+
 ## Aperçu visuel
 
 <p align="center">
@@ -22,6 +34,9 @@ décrit le premier démarrage, les thèmes, les dossiers et les permissions Andr
 <p align="center">
   <em>Parcours complet : Démarrage → Accueil → Recherche rapide (<code>Ctrl+K</code>) → Téléchargement par lot VF/VOSTFR → File active → Bibliothèque Auto-DL → Extensions Aniyomi (<a href="docs/showcase/animelab-demo.mp4">voir la vidéo HD MP4</a>).</em>
 </p>
+
+<details>
+<summary><strong>Captures : ordinateur, mobile et Android</strong></summary>
 
 | Accueil & Dernières sorties | Recherche rapide (`Ctrl + K`) |
 | :---: | :---: |
@@ -38,6 +53,8 @@ décrit le premier démarrage, les thèmes, les dossiers et les permissions Andr
 <p align="center">
   <img src="docs/showcase/10-mobile-android-views.png" alt="Vues mobiles Android d'AnimeLab" width="900" />
 </p>
+
+</details>
 
 <details>
 <summary><strong>🎬 Voir les GIFs détaillés par fonctionnalité</strong></summary>
@@ -257,21 +274,19 @@ Commencez par le guide de contribution ([Français](CONTRIBUTING.md) /
 la validation et les pull requests. Les contributions en français et en anglais
 sont les bienvenues.
 
-**Nous recherchons des contributeurs :** refonte de l’écran de chargement Android,
-détection des mises à jour et téléchargement automatique, correction des
-téléchargements en double (French-Manga et autres sources affectées), validation
-des extensions Aniyomi/Anikku, nouvel onglet **Outils** pour le sous-titrage et
-la création de MKV multipistes audio, refonte de la page Extensions et documentation.
-Nous recherchons aussi des thèmes, un choix de dossier Android au premier
-démarrage, des améliorations du lecteur vidéo, une meilleure gestion de la
-bibliothèque et une lecture hors ligne fiable sur Android.
-Il s’agit de chantiers ouverts : leurs objectifs et critères de validation sont
-décrits dans l’appel à contributions ([Français](docs/contribution-priorities.md) /
-[English](docs/contribution-priorities.en.md)). Les propositions de fonctionnalités
-et d’architecture sont les bienvenues. Contactez le mainteneur sur
-[Telegram — @loeuf237](https://t.me/loeuf237).
-Les tâches publiées sont regroupées dans le
-[suivi des contributions #12](https://github.com/loeuf237/animelab/issues/12).
+Commencez par les [trois fiches de première contribution](docs/first-contribution.md) :
+test Android hors ligne, guide Linux et palette de thème. Commentez l’issue choisie
+avec un périmètre proposé ; le mainteneur peut aider à repérer les fichiers,
+reproduire un problème et relire une première modification limitée.
+
+Les [priorités détaillées](docs/contribution-priorities.md) distinguent les fonctions
+existantes du travail restant : validation des extensions, ergonomie du lecteur,
+outils de sous-titrage et audio multipiste. Le
+[suivi des contributions #12](https://github.com/loeuf237/animelab/issues/12) indique les avancées.
+Utilisez les [Discussions](https://github.com/loeuf237/animelab/discussions) pour les
+questions et idées, les issues pour les tâches délimitées et bugs reproductibles.
+Contact privé : [Telegram — @loeuf237](https://t.me/loeuf237) ; consignez les décisions
+techniques utiles publiquement.
 
 Le moteur Python se trouve dans `animelab/` ; le packaging desktop utilise
 `animelab.spec`. Consultez les [notes sur le nom du paquet et la compatibilité](docs/package-namespace.md).

@@ -22,38 +22,35 @@ les changements proposés.
 - Une correction limitée, une traduction ou une clarification de documentation
   peut faire directement l’objet d’une pull request.
 
-## Chantiers pour lesquels nous recherchons de l’aide
+## Premières contributions et accompagnement
 
-L’[appel à contributions détaillé](docs/contribution-priorities.md) présente
-les objectifs et critères de validation de chaque chantier :
+Choisissez l’une des [trois fiches de première contribution](docs/first-contribution.md) :
 
-- refonte de l’écran de chargement Android ;
-- détection des nouvelles versions et téléchargement automatique configurable ;
-- correction des téléchargements/enregistrements en double dans French-Manga
-  et les autres sources affectées ;
-- validation des extensions APK Aniyomi/Anikku ;
-- nouvel onglet **Outils** et atelier complet de sous-titrage, avec
-  recherche, téléchargement et traduction via des clés d’API personnelles ;
-- téléchargement et édition audio depuis des extensions, puis création de
-  MKV multipistes audio ;
-- ergonomie et présentation de la page Extensions, inspirées de Mihon/Aniyomi ;
-- amélioration du README et de la documentation ;
-- création de thèmes et choix d’une apparence personnalisée ;
-- choix d’un dossier externe Android dès le premier démarrage ;
-- amélioration du lecteur vidéo Android ;
-- organisation, recherche et gestion de la bibliothèque ;
-- lecture vidéo hors ligne et accès fiable aux médias locaux sur Android.
+- Android : un rapport de démarrage et lecture hors ligne ([#32](https://github.com/loeuf237/animelab/issues/32)).
+- Documentation : un guide illustré de démarrage Linux depuis les sources, FR/EN ([#21](https://github.com/loeuf237/animelab/issues/21)).
+- Design : une palette liée aux variables actuelles, avec trois aperçus ([#28](https://github.com/loeuf237/animelab/issues/28)).
 
-Retrouvez les tâches publiées et leurs liens dans le
-[suivi des contributions #12](https://github.com/loeuf237/animelab/issues/12).
-Les petites tâches portent le label `good first issue` ; les chantiers complets
-sont ouverts sous `help wanted`.
+Chaque fiche précise la version de départ, le livrable, les fichiers utiles et la
+validation. Commentez l’issue avant de commencer ; indiquez votre proposition et
+les points pour lesquels vous avez besoin d’aide. Un rapport ou une maquette
+annotée peut suffire. Une relecture documentaire, une proposition de design ou
+un test de l’application installée n’exige pas toute la chaîne de développement.
 
-Les propositions de fonctionnalités et d’architecture sont les bienvenues.
-Vous pouvez contacter le mainteneur sur
-[Telegram — @loeuf237](https://t.me/loeuf237). Consignez les décisions et
-résultats utiles dans une issue ou une PR. Précisez toujours ce que vous avez
-réellement testé.
+Le mainteneur vise un premier retour sous **deux jours ouvrés** lorsqu’il est
+disponible ; c’est un objectif, pas une garantie de délai de revue. Il peut aider
+à réduire le périmètre, trouver le code utile et choisir les contrôles pertinents.
+Les PR en brouillon sont bienvenues. Signalez un blocage dans l’issue avant
+d’élargir la tâche. Les contributions acceptées sont créditées dans les notes de version.
+
+Utilisez les [Discussions](https://github.com/loeuf237/animelab/discussions) pour
+les questions et propositions, les issues pour le travail concret et les PR pour
+les modifications à relire. Les échanges FR/EN sont bienvenus. Gardez les décisions
+et résultats publics ; contact privé sur [Telegram — @loeuf237](https://t.me/loeuf237).
+
+Consultez les [priorités et travaux restants](docs/contribution-priorities.md)
+et le [suivi #12](https://github.com/loeuf237/animelab/issues/12) avant un chantier
+plus large. Réservez `good first issue` aux petites tâches accessibles ;
+`help wanted` inclut aussi les sujets nécessitant une discussion technique.
 
 ## Signaler un bug
 
@@ -261,3 +258,8 @@ contribution. Ne transmettez pas de secrets ou de données privées à ces outil
 AnimeLab est distribué sous **GPL-3.0-only** : les contributions doivent être
 compatibles avec la [licence du projet](LICENSE). Préservez les notices des
 composants tiers et indiquez la provenance de tout code ou asset repris.
+
+## Suivi de la communauté
+
+Le [guide de diffusion et d’accueil](docs/community-outreach.md) contient les messages FR/EN,
+les contraintes des canaux et la routine de revue du mainteneur.

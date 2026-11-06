@@ -21,37 +21,34 @@ problems clearly and keep discussions focused on the proposed changes.
 - A small fix, translation or documentation clarification can be submitted
   directly as a pull request.
 
-## Areas where we are looking for help
+## Current first contributions and support
 
-The [detailed call for contributors](docs/contribution-priorities.en.md)
-describes the goals and validation criteria for each area:
+Choose one of the [three first-contribution briefs](docs/first-contribution.en.md):
 
-- redesigning the Android loading screen;
-- detecting new versions and offering configurable automatic downloads;
-- fixing duplicate downloads/saved files in French-Manga and other affected
-  sources;
-- validating Aniyomi/Anikku extension APKs;
-- adding a **Tools** tab and a complete subtitle workspace, including
-  search, downloads and translation using personal API keys;
-- downloading and editing audio from extensions, then creating multi-audio
-  MKV files;
-- improving the Extensions page’s usability and appearance, inspired by
-  Mihon/Aniyomi;
-- improving the README and documentation;
-- contributing themes and a customizable appearance;
-- choosing an external Android folder on first launch;
-- improving the Android video player;
-- organizing, searching and managing the library;
-- offline video playback and reliable local-media access on Android.
+- Android: one offline cold-start/playback report ([#32](https://github.com/loeuf237/animelab/issues/32)).
+- Documentation: an illustrated Linux source-startup walkthrough, FR/EN ([#21](https://github.com/loeuf237/animelab/issues/21)).
+- Design: one palette mapped to current tokens, with three previews ([#28](https://github.com/loeuf237/animelab/issues/28)).
 
-Find published tasks and their links in the
-[contribution tracker #12](https://github.com/loeuf237/animelab/issues/12).
-Small tasks use `good first issue`; complete workstreams are open under
-`help wanted`.
+Each brief names a baseline, deliverable, starting files and validation. Comment
+on its issue before starting; say what you want to do and where you need help.
+A report or annotated mockup can be enough. You do not need the complete toolchain
+for a documentation review, design proposal or installed-app test.
 
-Feature and architecture proposals are welcome. You can contact the maintainer
-on [Telegram — @loeuf237](https://t.me/loeuf237). Record useful decisions and
-results in an issue or PR. Always state what you actually tested.
+The maintainer aims to acknowledge new contributions within **two working days**
+when available; this is a target, not a guaranteed review deadline. Reviews can
+help narrow the scope, identify the relevant code and choose focused checks.
+Draft PRs are welcome. Describe a blocker in the issue rather than silently
+expanding the task. Accepted contributions are credited in release notes.
+
+Use [Discussions](https://github.com/loeuf237/animelab/discussions) for questions
+and proposals, issues for actionable work, and PRs for reviewable changes.
+French and English are welcome. Keep decisions and results public; private
+contact is available on [Telegram — @loeuf237](https://t.me/loeuf237).
+
+See the [current roadmap and remaining work](docs/contribution-priorities.en.md)
+and [tracker #12](https://github.com/loeuf237/animelab/issues/12) before choosing a
+larger task. Only bounded beginner tasks should use `good first issue`;
+`help wanted` also covers work needing design or engineering discussion.
 
 ## Reporting a bug
 
@@ -255,3 +252,8 @@ contribution. Do not send secrets or private data to these tools.
 AnimeLab is distributed under **GPL-3.0-only**: contributions must be compatible
 with the [project license](LICENSE). Preserve third-party notices and identify
 the source of any reused code or assets.
+
+## Community follow-up
+
+The [outreach and welcome guide (FR/EN)](docs/community-outreach.md) contains channel-specific
+drafts, publishing constraints and the maintainer review routine.
